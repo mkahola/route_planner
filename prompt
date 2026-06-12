@@ -12,6 +12,10 @@ Lisää mahdollisuus yhdistää yksi tai useampi jälki yhdeksi jäljeksi.
 
 Lisää mahdollisuus poistaa reittipiste kartalta ja reititä tämä osuus uudestaan. Kysy varmistus pisteen poistamiseksi "Poistetaanko piste" erillisessä pienessä ponnahdusikkunassa.
 
+Aseta otsikoksi "Reittisuunnittelu". Käytä samaa otsikkoa myös sidebarille.
+
 Näytä reittitietojen kokonaispituus kilometreissä
 
 Lisää mahdollisuus tallentaa GPX-jälki paikallisesti Downloads hakemistoon.
+
+Pyri optimoimaan sivy myös mobiililaitteille.
