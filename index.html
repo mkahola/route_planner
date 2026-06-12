@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Reittisuunnittelu</title>
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
     
     <style>
         :root {
@@ -81,7 +81,6 @@
         
         .delete-btn { background: none; border: none; color: var(--danger-color); cursor: pointer; font-weight: bold; font-size: 1.4rem; padding: 0 5px; }
 
-        /* Lipun kuvakeasetukset */
         .flag-icon-container { position: relative; width: 24px; height: 30px; cursor: grab; }
         .flag-icon-container:active { cursor: grabbing; }
         .flag-pole { position: absolute; bottom: 0; left: 0; width: 2.5px; height: 30px; background-color: #333; box-shadow: 1px 1px 1px rgba(0,0,0,0.3); }
@@ -89,7 +88,6 @@
 
         .leaflet-div-icon { background: transparent !important; border: none !important; }
 
-        /* Ponnahdusikkunan (Modal) tyylit */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.5); z-index: 2000;
@@ -111,7 +109,6 @@
         .modal-btn-cancel { background: #bdc3c7; color: var(--primary-color); }
         .modal-btn-cancel:hover { background: #95a5a6; }
 
-        /* Mobiilimukautukset */
         @media (max-width: 768px) {
             body { flex-direction: column-reverse; }
             #sidebar {
@@ -168,11 +165,11 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 
     <script>
-        // Määritetään suojatun Cloudflare Workerin päätepiste globaalisti
-        const WORKER_URL = 'https://route-planner.mika-kahola.workers.dev/';
+        // TÄRKEÄÄ: Varmista, että tässä on oman Workerisi osoite takaviivoineen
+        const WORKER_URL = 'https://routeplanner.mika-kahola.workers.dev/';
 
         const state = {
             routes: [],     
@@ -188,7 +185,6 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Rekisteröidään tapahtumat dynaamiselle harvennukselle ja zoomaustoiminnoille
         map.on('moveend', renderDynamicWaypoints);
         map.on('zoomend', renderDynamicWaypoints);
         map.on('click', async (e) => { await handleMapClick(e.latlng); });
@@ -229,15 +225,17 @@
             const avoidHighways = document.getElementById('avoid-highways-checkbox').checked;
             
             const body = {
-                coordinates: [[start[1], start[0]], [end[1], end[0]]],
-                ...(avoidHighways && { options: { avoid_features: ["highway"] } })
+                coordinates: [[start[1], start[0]], [end[1], end[0]]]
             };
+            
+            if (avoidHighways) {
+                body.options = { avoid_features: ["highway"] };
+            }
 
             try {
-                // Tehdään POST-pyyntö suoraan Cloudflare Workerille, joka hoitaa API-avaimen liittämisen pilvessä
                 const response = await fetch(WORKER_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
                 
@@ -249,7 +247,7 @@
                     }
                 }
             } catch (err) { 
-                console.error("Reititysvirhe Cloudflare Workerin kautta, piirretään suorana linjana:", err); 
+                console.error("Reititysvirhe Cloudflare Workerin kautta:", err); 
             }
             return [start, end];
         }
