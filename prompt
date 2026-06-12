@@ -1,0 +1,17 @@
+Ole senioritasoinen web-kehittäjä ja rakenna html-pohjainen sovellus, jossa on karttapohja ja openrouteservicen reitinsuunnittelu siten, että karttapohjaan voi hiiren avulla klikata reittipisteitä. Reittipistettä voi siirtää pitämällä hiiren vasemman painikkeen pohjassa uuteen paikkaa karttapohjalla. Reittipiste ja reititys päivittyy, kun hiiren vasen painike vapautetaan,
+
+Lisää mahdollisuus valita moottoriteiden välttämiseen.
+
+OpenRouteServicen API avain omassa resources.json tiedostossa.
+
+Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita.
+
+Näytä maksimissaan 10 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuolella.
+
+Lisää mahdollisuus yhdistää yksi tai useampi jälki yhdeksi jäljeksi.
+
+Lisää mahdollisuus poistaa reittipiste kartalta ja reititä tämä osuus uudestaan. Kysy varmistus pisteen poistamiseksi "Poistetaanko piste" erillisessä pienessä ponnahdusikkunassa.
+
+Näytä reittitietojen kokonaispituus kilometreissä
+
+Lisää mahdollisuus tallentaa GPX-jälki paikallisesti Downloads hakemistoon.
