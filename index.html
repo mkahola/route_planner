@@ -248,6 +248,34 @@
         }
 
         async function fetchRouteSegment(start, end) {
+            // Kutsutaan omaa Cloudflare Workeria OpenRouteServicen sijaan
+            const url = '/api/route';
+
+            const avoidHighways = document.getElementById('avoid-highways-checkbox').checked;
+
+            const body = {
+                coordinates: [[start[1], start[0]], [end[1], end[0]]],
+                ...(avoidHighways && { options: { avoid_features: ["highway"] } })
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' }, // Ei Authorization-headeria selaimeen!
+                    body: JSON.stringify(body)
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    let segment = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                    return simplifyCoordinates(segment, 0.0001);
+                }
+            } catch (err) {
+                console.error("Reititysvirhe Workerin kautta:", err);
+            }
+            return [start, end];
+        }
+
+        async function fetchRouteSegment(start, end) {
             if (!state.apiKey) return [start, end];
             
             const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
