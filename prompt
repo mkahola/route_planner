@@ -4,9 +4,9 @@ Lisää mahdollisuus valita moottoriteiden välttämiseen.
 
 OpenRouteServicen API avain omassa resources.json tiedostossa.
 
-Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita.
+Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan reittipisteeseen ja pidä loppu jäljestä koskemattomana.
 
-Näytä maksimissaan 10 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuolella.
+Näytä maksimissaan 20 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuolella. Tuo reittipisteitä lisää niin, että zoom-tason kasvaessa reittipisteitä on 20 ja vastaavasti zoom-tason laskiessa reittipisteitä vähännetään kuitenkin niin, että karttapohjalla näkyy maksimissaan 20 reittipistettä. Toteuta tämä älykäs zoom-toiminto myös tuoduille gpx-tiedostoille.
 
 Lisää mahdollisuus yhdistää yksi tai useampi jälki yhdeksi jäljeksi.
 
