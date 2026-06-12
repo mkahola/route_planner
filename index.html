@@ -32,7 +32,7 @@
             padding: 20px; box-sizing: border-box; overflow-y: auto;
         }
 
-        #map { flex-grow: 1; height: 100%; }
+        #map { flex-grow: 1; height: 100%; cursor: crosshair; }
 
         h2, h3 { margin-top: 0; color: var(--primary-color); border-bottom: 2px solid var(--bg-color); padding-bottom: 10px; }
         h2 { font-size: 1.5rem; }
@@ -82,7 +82,7 @@
         
         <div id="api-status" class="status-loading">Tarkistetaan reitityspalvelua...</div>
 
-        <p class="instruction">Lataa useita uria. Pisteen poistaminen siivoaa automaattisesti myös sen taustalla olevat, nykyisessä zoomissa piilotetut välipisteet seuraavaan näkyvään pisteeseen saakka.</p>
+        <p class="instruction">Lataa GPX-tiedostoja tai <b>klikkaa suoraan karttaa lisätäksesi omia reittipisteitä</b>. Voit yhdistää urat tai muokata pisteitä lennossa raahaamalla.</p>
 
         <div class="control-group">
             <div class="file-upload">
@@ -93,9 +93,9 @@
             <button id="clear-btn" class="btn btn-danger">Tyhjennä kaikki</button>
         </div>
 
-        <h3>Ladatut GPX-urat</h3>
+        <h3>Ladatut GPX-urat / Omat piirrokset</h3>
         <ul id="gpx-route-list" class="route-list">
-            <li class="route-item" style="color: #7f8c8d; font-style: italic;">Ei ladattuja GPX-tiedostoja</li>
+            <li class="route-item" style="color: #7f8c8d; font-style: italic;">Ei aktiivisia reittejä</li>
         </ul>
 
         <h3>Aktiiviset näkymäpisteet</h3>
@@ -132,26 +132,102 @@
                 
                 if (config.ORS_API_KEY && config.ORS_API_KEY !== "SINUN_ORS_API_AVAIN" && config.ORS_API_KEY.trim() !== "") {
                     state.apiKey = config.ORS_API_KEY.trim();
-                    statusEl.innerText = "Yhteys valmis (API OK — Älykäs tiesiirto aktiivinen)";
+                    statusEl.innerText = "Yhteys valmis (API OK — Älykäs reititys aktiivinen)";
                     statusEl.className = "status-ok";
                 } else {
                     throw new Error("Avain tyhjä");
                 }
             } catch (error) {
                 state.apiKey = null;
-                statusEl.innerText = "Katselutila (Ei API-avainta — Muokaukset ja yhdistäminen suorilla silloilla)";
+                statusEl.innerText = "Katselutila (Ei API-avainta — Klikkaukset ja siirrot suorilla silloilla)";
                 statusEl.className = "status-warning";
             }
         }
         loadResources();
 
+        // Kartan tapahtumat
         map.on('moveend', () => {
             reparseAllGpxByCurrentBounds();
+        });
+
+        // UUSI: Klikkaamalla karttaa lisätään uusi piste lennossa
+        map.on('click', async (e) => {
+            await handleMapClick(e.latlng);
         });
 
         document.getElementById('clear-btn').addEventListener('click', clearAllRoutes);
         document.getElementById('gpx-file-input').addEventListener('change', handleMultiGPXUpload);
         document.getElementById('merge-routes-btn').addEventListener('click', mergeAllActiveRoutes);
+
+        // --- UUSI TOIMINTO: KARTTAKLIKKAUKSEN KÄSITTELY ---
+        async function handleMapClick(latlng) {
+            const newPoint = [latlng.lat, latlng.lng];
+            let activeRoute = state.routes[state.routes.length - 1]; // Otetaan viimeisin ura käsittelyyn
+
+            // Jos reittejä ei ole lainkaan, luodaan uusi tyhjä "Oma reitti" pohjaksi
+            if (!activeRoute) {
+                const color = state.colorPalette[state.colorIndex % state.colorPalette.length];
+                state.colorIndex++;
+                const routeId = 'custom_' + Date.now();
+                const layer = L.polyline([], { color: color, weight: 5, opacity: 0.85 }).addTo(map);
+
+                activeRoute = {
+                    id: routeId,
+                    name: 'Oma reitti',
+                    coords: [],
+                    color: color,
+                    layer: layer
+                };
+                state.routes.push(activeRoute);
+            }
+
+            if (activeRoute.coords.length === 0) {
+                // Ensimmäinen piste lisätään sellaisenaan uran pohjaksi
+                activeRoute.coords.push(newPoint);
+            } else {
+                const lastPoint = activeRoute.coords[activeRoute.coords.length - 1];
+
+                if (state.apiKey) {
+                    // Älykäs reititys edellisestä pisteestä uuteen klikattuun pisteeseen tieverkostoa pitkin
+                    const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+                    const body = {
+                        coordinates: [
+                            [lastPoint[1], lastPoint[0]],
+                            [newPoint[1], newPoint[0]]
+                        ]
+                    };
+
+                    try {
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json; charset=utf-8', 'Authorization': state.apiKey },
+                            body: JSON.stringify(body)
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            const segmentCoords = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                            
+                            // Lisätään laskettu reittisiivu uran perään (ohitetaan ekapiste ettei tule duplikaattia)
+                            activeRoute.coords.push(...segmentCoords.slice(1));
+                        } else {
+                            activeRoute.coords.push(newPoint);
+                        }
+                    } catch (err) {
+                        console.error("Reititysvirhe klikattaessa, piirretään suorana: ", err);
+                        activeRoute.coords.push(newPoint);
+                    }
+                } else {
+                    // Jos APIa ei ole, vedetään uusi piste suoralla viivalla edellisen jatkoksi
+                    activeRoute.coords.push(newPoint);
+                }
+            }
+
+            // Päivitetään muutokset kartalle ja listoille
+            activeRoute.layer.setLatLngs(activeRoute.coords);
+            updateSidebarRouteList();
+            reparseAllGpxByCurrentBounds();
+        }
 
         function handleMultiGPXUpload(e) {
             const files = e.target.files;
@@ -284,7 +360,6 @@
             zoomToFitAllRoutes();
         }
 
-        // --- REITTIPISTEIDEN PARSIMINEN JA SEURANTALISTA ---
         function reparseAllGpxByCurrentBounds() {
             state.markers.forEach(m => map.removeLayer(m.markerInstance));
             state.markers = [];
@@ -314,8 +389,6 @@
                         const originalIndex = visibleIndices[i];
                         const coord = route.coords[originalIndex];
                         
-                        // Lasketaan dynaamisesti mikä on SEURAAVA näkyvä piste tässä zoom-tasossa,
-                        // jotta osataan poistaa niiden välinen piilotettu data tarvittaessa.
                         let nextVisibleIndex = route.coords.length - 1; 
                         if (i + step < visibleIndices.length) {
                             nextVisibleIndex = visibleIndices[i + step];
@@ -344,7 +417,6 @@
             deleteBtn.className = 'popup-delete-btn';
             deleteBtn.innerText = 'Poista piste';
             deleteBtn.onclick = () => {
-                // KUTSUTAAN PÄIVITETTYÄ POISTOA: Lähetetään mukaan myös seuraavan näkyvän pisteen indeksi
                 removeRoutePointRange(routeId, coordIndex, nextVisibleIndex);
             };
             
@@ -355,7 +427,7 @@
                 markerInstance: marker,
                 routeId: routeId,
                 coordIndex: coordIndex,
-                nextVisibleIndex: nextVisibleIndex // pidetään tallessa
+                nextVisibleIndex: nextVisibleIndex
             });
         }
 
@@ -405,24 +477,18 @@
             reparseAllGpxByCurrentBounds();
         }
 
-        // --- UUSI ÄLYKÄS POISTOFUNKTIO VÄLIPISTEIDEN SIIVOUKSELLA ---
         function removeRoutePointRange(routeId, startIndex, endIndex) {
             const route = state.routes.find(r => r.id === routeId);
             if (!route) return;
 
             map.closePopup();
 
-            // Lasketaan kuinka monta pistettä poistetaan yhteensä valitun pisteen ja seuraavan näkyvän väliltä.
-            // Jos kyseessä on reitin aivan viimeinen piste, poistetaan vain se yksi piste.
             let deleteCount = endIndex - startIndex;
             if (deleteCount <= 0 || startIndex === route.coords.length - 1) {
                 deleteCount = 1;
             }
 
-            // Poistaa valitun pisteen ja kaikki piilotetut välipisteet taulukosta
             route.coords.splice(startIndex, deleteCount);
-
-            // Päivitetään siivottu geometria kartalle lennossa
             route.layer.setLatLngs(route.coords);
             
             updateSidebarRouteList();
@@ -455,7 +521,7 @@
             }
 
             if (state.routes.length === 0) {
-                listEl.innerHTML = '<li class="route-item" style="color: #7f8c8d; font-style: italic;">Ei ladattuja GPX-tiedostoja</li>';
+                listEl.innerHTML = '<li class="route-item" style="color: #7f8c8d; font-style: italic;">Ei aktiivisia reittejä</li>';
                 return;
             }
 
@@ -474,7 +540,10 @@
                 const delBtn = document.createElement('button');
                 delBtn.className = 'delete-btn';
                 delBtn.innerHTML = '&times;';
-                delBtn.onclick = () => removeWholeRoute(route.id);
+                delBtn.onclick = (evt) => {
+                    evt.stopPropagation(); // estetään klikkaustapahtuman leviäminen karttaan uran poiston yhteydessä
+                    removeWholeRoute(route.id);
+                };
 
                 li.appendChild(delBtn);
                 listEl.appendChild(li);
@@ -503,7 +572,10 @@
                 const delBtn = document.createElement('button');
                 delBtn.className = 'delete-btn';
                 delBtn.innerHTML = '&times;';
-                delBtn.onclick = () => removeRoutePointRange(m.routeId, m.coordIndex, m.nextVisibleIndex);
+                delBtn.onclick = (evt) => {
+                    evt.stopPropagation();
+                    removeRoutePointRange(m.routeId, m.coordIndex, m.nextVisibleIndex);
+                };
 
                 li.appendChild(delBtn);
                 listEl.appendChild(li);
