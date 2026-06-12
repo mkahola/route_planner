@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Route Planner</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --bg-color: #ecf0f1;
+            --text-color: #2c3e50;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex; height: 100vh; overflow: hidden;
+            color: var(--text-color);
+        }
+
+        #sidebar {
+            width: 380px; background: white;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.1);
+            z-index: 1000; display: flex; flex-direction: column;
+            padding: 20px; box-sizing: border-box; overflow-y: auto;
+        }
+
+        #map { flex-grow: 1; height: 100%; }
+
+        h2, h3 { margin-top: 0; color: var(--primary-color); border-bottom: 2px solid var(--bg-color); padding-bottom: 10px; }
+        h2 { font-size: 1.5rem; }
+        h3 { font-size: 1.1rem; margin-top: 20px; }
+
+        .control-group { margin-bottom: 15px; }
+
+        .btn {
+            color: white; border: none; padding: 10px 15px; border-radius: 4px;
+            cursor: pointer; font-weight: bold; width: 100%; transition: background 0.2s;
+            margin-bottom: 8px; display: block; text-align: center; box-sizing: border-box; font-size: 0.9rem;
+        }
+        .btn-success { background: var(--success-color); }
+        .btn-success:hover { background: #27ae60; }
+        .btn-secondary { background: #7f8c8d; }
+        .btn-secondary:hover { background: #6c7a7d; }
+        .btn-danger { background: var(--danger-color); }
+        .btn-danger:hover { background: #c0392b; }
+
+        .file-upload { position: relative; display: inline-block; width: 100%; margin-bottom: 8px; }
+        .file-upload input[type="file"] { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+
+        .instruction { font-size: 0.85rem; color: #7f8c8d; font-style: italic; margin-bottom: 15px; }
+
+        #api-status { font-size: 0.8rem; margin-bottom: 15px; padding: 8px 12px; border-radius: 4px; font-weight: bold; line-height: 1.4; }
+        .status-loading { background: #ffeaa7; color: #b7791f; }
+        .status-ok { background: #badc58; color: #27ae60; }
+        .status-warning { background: #ffbe76; color: #d35400; }
+
+        /* Reittilistat */
+        .route-list { list-style: none; padding: 0; margin: 0; border: 1px solid var(--bg-color); border-radius: 4px; max-height: 180px; overflow-y: auto; }
+        .route-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--bg-color); font-size: 0.85rem; background: #fff; }
+        .route-item:last-child { border-bottom: none; }
+        
+        .route-meta { display: flex; align-items: center; gap: 8px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .color-indicator { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        
+        .delete-btn { background: none; border: none; color: var(--danger-color); cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 0 5px; }
+
+        .popup-delete-btn { background: var(--danger-color); color: white; border: none; padding: 6px 10px; border-radius: 3px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>Simple Route Planner</h2>
+        
+        <div id="api-status" class="status-loading">Tarkistetaan reitityspalvelua...</div>
+
+        <p class="instruction">Lataa useita uria. Pisteen poistaminen siivoaa automaattisesti myös sen taustalla olevat, nykyisessä zoomissa piilotetut välipisteet seuraavaan näkyvään pisteeseen saakka.</p>
+
+        <div class="control-group">
+            <div class="file-upload">
+                <span class="btn btn-secondary">Tuo GPX-tiedostoja (.gpx)</span>
+                <input type="file" id="gpx-file-input" accept=".gpx" multiple>
+            </div>
+            <button id="merge-routes-btn" class="btn btn-success" style="display: none;">Yhdistä urat yhdeksi reitiksi</button>
+            <button id="clear-btn" class="btn btn-danger">Tyhjennä kaikki</button>
+        </div>
+
+        <h3>Ladatut GPX-urat</h3>
+        <ul id="gpx-route-list" class="route-list">
+            <li class="route-item" style="color: #7f8c8d; font-style: italic;">Ei ladattuja GPX-tiedostoja</li>
+        </ul>
+
+        <h3>Aktiiviset näkymäpisteet</h3>
+        <ul id="waypoint-list" class="route-list">
+            <li class="wp-item" style="color: #7f8c8d; font-style: italic; padding: 8px 12px;">Ei pisteitä näkymässä</li>
+        </ul>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        const state = {
+            apiKey: null,
+            routes: [],     
+            markers: [],    
+            colorPalette: ['#3498db', '#9b59b6', '#2ecc71', '#e67e22', '#e74c3c', '#1abc9c'],
+            colorIndex: 0
+        };
+
+        const map = L.map('map').setView([60.1699, 24.9384], 11);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        async function loadResources() {
+            const statusEl = document.getElementById('api-status');
+            try {
+                const response = await fetch('resources.json');
+                if (!response.ok) throw new Error("resources.json puuttuu");
+                const config = await response.json();
+                
+                if (config.ORS_API_KEY && config.ORS_API_KEY !== "SINUN_ORS_API_AVAIN" && config.ORS_API_KEY.trim() !== "") {
+                    state.apiKey = config.ORS_API_KEY.trim();
+                    statusEl.innerText = "Yhteys valmis (API OK — Älykäs tiesiirto aktiivinen)";
+                    statusEl.className = "status-ok";
+                } else {
+                    throw new Error("Avain tyhjä");
+                }
+            } catch (error) {
+                state.apiKey = null;
+                statusEl.innerText = "Katselutila (Ei API-avainta — Muokaukset ja yhdistäminen suorilla silloilla)";
+                statusEl.className = "status-warning";
+            }
+        }
+        loadResources();
+
+        map.on('moveend', () => {
+            reparseAllGpxByCurrentBounds();
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', clearAllRoutes);
+        document.getElementById('gpx-file-input').addEventListener('change', handleMultiGPXUpload);
+        document.getElementById('merge-routes-btn').addEventListener('click', mergeAllActiveRoutes);
+
+        function handleMultiGPXUpload(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    try {
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(evt.target.result, "text/xml");
+                        const rawCoords = [];
+
+                        const trkpts = xmlDoc.getElementsByTagName('trkpt');
+                        const wpts = xmlDoc.getElementsByTagName('wpt');
+                        const sourcePoints = trkpts.length > 0 ? trkpts : wpts;
+
+                        if (sourcePoints.length === 0) return;
+
+                        for (let i = 0; i < sourcePoints.length; i++) {
+                            let lat = parseFloat(sourcePoints[i].getAttribute('lat'));
+                            let lon = parseFloat(sourcePoints[i].getAttribute('lon'));
+                            if (!isNaN(lat) && !isNaN(lon)) {
+                                rawCoords.push([lat, lon]);
+                            }
+                        }
+
+                        const color = state.colorPalette[state.colorIndex % state.colorPalette.length];
+                        state.colorIndex++;
+
+                        const routeId = 'route_' + Date.now() + Math.random().toString(36).substr(2, 5);
+
+                        const layer = L.polyline(rawCoords, {
+                            color: color,
+                            weight: 5,
+                            opacity: 0.85
+                        }).addTo(map);
+
+                        state.routes.push({
+                            id: routeId,
+                            name: file.name.replace('.gpx', ''),
+                            coords: rawCoords,
+                            color: color,
+                            layer: layer
+                        });
+
+                        updateSidebarRouteList();
+                        zoomToFitAllRoutes();
+                        reparseAllGpxByCurrentBounds();
+
+                    } catch (err) { console.error("Tiedostovirhe: ", err); }
+                };
+                reader.readAsText(file);
+            });
+
+            e.target.value = '';
+        }
+
+        async function mergeAllActiveRoutes() {
+            if (state.routes.length < 2) return;
+
+            const finalMergedCoords = [];
+            
+            for (let i = 0; i < state.routes.length; i++) {
+                const currentRoute = state.routes[i];
+
+                if (finalMergedCoords.length === 0) {
+                    finalMergedCoords.push(...currentRoute.coords);
+                } else {
+                    const lastPointOfProgress = finalMergedCoords[finalMergedCoords.length - 1];
+                    const firstPointOfNextRoute = currentRoute.coords[0];
+
+                    if (state.apiKey) {
+                        const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+                        const body = {
+                            coordinates: [
+                                [lastPointOfProgress[1], lastPointOfProgress[0]],
+                                [firstPointOfNextRoute[1], firstPointOfNextRoute[0]]
+                            ]
+                        };
+
+                        try {
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json; charset=utf-8', 'Authorization': state.apiKey },
+                                body: JSON.stringify(body)
+                            });
+
+                            if (response.ok) {
+                                const data = await response.json();
+                                const bridge = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                                
+                                finalMergedCoords.push(...bridge);
+                                finalMergedCoords.push(...currentRoute.coords);
+                            } else {
+                                finalMergedCoords.push(...currentRoute.coords);
+                            }
+                        } catch (err) {
+                            console.error("Yhdistämissilta epäonnistui: ", err);
+                            finalMergedCoords.push(...currentRoute.coords);
+                        }
+                    } else {
+                        finalMergedCoords.push(...currentRoute.coords);
+                    }
+                }
+            }
+
+            state.routes.forEach(r => map.removeLayer(r.layer));
+            
+            const newColor = state.colorPalette[state.colorIndex % state.colorPalette.length];
+            state.colorIndex++;
+            const newRouteId = 'merged_' + Date.now();
+            
+            const newLayer = L.polyline(finalMergedCoords, {
+                color: newColor,
+                weight: 5,
+                opacity: 0.9
+            }).addTo(map);
+
+            state.routes = [{
+                id: newRouteId,
+                name: 'Yhdistetty reitti',
+                coords: finalMergedCoords,
+                color: newColor,
+                layer: newLayer
+            }];
+
+            updateSidebarRouteList();
+            reparseAllGpxByCurrentBounds();
+            zoomToFitAllRoutes();
+        }
+
+        // --- REITTIPISTEIDEN PARSIMINEN JA SEURANTALISTA ---
+        function reparseAllGpxByCurrentBounds() {
+            state.markers.forEach(m => map.removeLayer(m.markerInstance));
+            state.markers = [];
+
+            if (state.routes.length === 0) {
+                updateSidebarWaypointList();
+                return;
+            }
+
+            const bounds = map.getBounds();
+            const maxPointsPerRoute = Math.max(3, Math.floor(12 / state.routes.length));
+
+            state.routes.forEach(route => {
+                let visibleIndices = [];
+
+                for (let i = 0; i < route.coords.length; i++) {
+                    const pt = route.coords[i];
+                    if (bounds.contains(L.latLng(pt[0], pt[1]))) {
+                        visibleIndices.push(i);
+                    }
+                }
+
+                if (visibleIndices.length > 0) {
+                    const step = Math.max(1, Math.floor(visibleIndices.length / maxPointsPerRoute));
+
+                    for (let i = 0; i < visibleIndices.length; i += step) {
+                        const originalIndex = visibleIndices[i];
+                        const coord = route.coords[originalIndex];
+                        
+                        // Lasketaan dynaamisesti mikä on SEURAAVA näkyvä piste tässä zoom-tasossa,
+                        // jotta osataan poistaa niiden välinen piilotettu data tarvittaessa.
+                        let nextVisibleIndex = route.coords.length - 1; 
+                        if (i + step < visibleIndices.length) {
+                            nextVisibleIndex = visibleIndices[i + step];
+                        }
+
+                        createEditableMarker(coord, route.id, originalIndex, nextVisibleIndex);
+                    }
+                }
+            });
+
+            updateSidebarWaypointList();
+        }
+
+        function createEditableMarker(coord, routeId, coordIndex, nextVisibleIndex) {
+            const marker = L.marker([coord[0], coord[1]], { draggable: true }).addTo(map);
+            
+            marker.on('dragend', async function(e) {
+                const newLatLng = e.target.getLatLng();
+                await handleMarkerDrag(routeId, coordIndex, newLatLng);
+            });
+
+            const container = document.createElement('div');
+            container.innerHTML = `<strong>Muokkaa pisteitä</strong><br><span style="font-size:0.8rem; color:#7f8c8d;">Poisto suoristaa linjan seuraavaan näkyvään pisteeseen.</span>`;
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'popup-delete-btn';
+            deleteBtn.innerText = 'Poista piste';
+            deleteBtn.onclick = () => {
+                // KUTSUTAAN PÄIVITETTYÄ POISTOA: Lähetetään mukaan myös seuraavan näkyvän pisteen indeksi
+                removeRoutePointRange(routeId, coordIndex, nextVisibleIndex);
+            };
+            
+            container.appendChild(deleteBtn);
+            marker.bindPopup(container);
+
+            state.markers.push({
+                markerInstance: marker,
+                routeId: routeId,
+                coordIndex: coordIndex,
+                nextVisibleIndex: nextVisibleIndex // pidetään tallessa
+            });
+        }
+
+        async function handleMarkerDrag(routeId, index, newLatLng) {
+            const route = state.routes.find(r => r.id === routeId);
+            if (!route) return;
+
+            const newCoord = [newLatLng.lat, newLatLng.lng];
+
+            if (state.apiKey && index > 0 && index < route.coords.length - 1) {
+                const prevPt = route.coords[index - 1];
+                const nextPt = route.coords[index + 1];
+
+                const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+                const body = {
+                    coordinates: [
+                        [prevPt[1], prevPt[0]],
+                        [newCoord[1], newCoord[0]],
+                        [nextPt[1], nextPt[0]]
+                    ]
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json; charset=utf-8', 'Authorization': state.apiKey },
+                        body: JSON.stringify(body)
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const newSegmentCoords = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                        const deleteCount = (index + 1) - (index - 1) + 1;
+                        route.coords.splice(index - 1, deleteCount, ...newSegmentCoords);
+                    } else {
+                        route.coords[index] = newCoord;
+                    }
+                } catch (err) {
+                    route.coords[index] = newCoord;
+                }
+            } else {
+                route.coords[index] = newCoord;
+            }
+
+            route.layer.setLatLngs(route.coords);
+            updateSidebarRouteList();
+            reparseAllGpxByCurrentBounds();
+        }
+
+        // --- UUSI ÄLYKÄS POISTOFUNKTIO VÄLIPISTEIDEN SIIVOUKSELLA ---
+        function removeRoutePointRange(routeId, startIndex, endIndex) {
+            const route = state.routes.find(r => r.id === routeId);
+            if (!route) return;
+
+            map.closePopup();
+
+            // Lasketaan kuinka monta pistettä poistetaan yhteensä valitun pisteen ja seuraavan näkyvän väliltä.
+            // Jos kyseessä on reitin aivan viimeinen piste, poistetaan vain se yksi piste.
+            let deleteCount = endIndex - startIndex;
+            if (deleteCount <= 0 || startIndex === route.coords.length - 1) {
+                deleteCount = 1;
+            }
+
+            // Poistaa valitun pisteen ja kaikki piilotetut välipisteet taulukosta
+            route.coords.splice(startIndex, deleteCount);
+
+            // Päivitetään siivottu geometria kartalle lennossa
+            route.layer.setLatLngs(route.coords);
+            
+            updateSidebarRouteList();
+            reparseAllGpxByCurrentBounds();
+        }
+
+        function calculateGpxGeometricDistance(coords) {
+            let totalDist = 0;
+            for (let i = 0; i < coords.length - 1; i++) {
+                totalDist += L.latLng(coords[i][0], coords[i][1]).distanceTo(L.latLng(coords[i+1][0], coords[i+1][1]));
+            }
+            return totalDist / 1000;
+        }
+
+        function zoomToFitAllRoutes() {
+            if (state.routes.length === 0) return;
+            const group = new L.featureGroup(state.routes.map(r => r.layer));
+            map.fitBounds(group.getBounds().pad(0.05));
+        }
+
+        function updateSidebarRouteList() {
+            const listEl = document.getElementById('gpx-route-list');
+            listEl.innerHTML = '';
+
+            const mergeBtn = document.getElementById('merge-routes-btn');
+            if (state.routes.length >= 2) {
+                mergeBtn.style.display = 'block';
+            } else {
+                mergeBtn.style.display = 'none';
+            }
+
+            if (state.routes.length === 0) {
+                listEl.innerHTML = '<li class="route-item" style="color: #7f8c8d; font-style: italic;">Ei ladattuja GPX-tiedostoja</li>';
+                return;
+            }
+
+            state.routes.forEach(route => {
+                const currentDistance = calculateGpxGeometricDistance(route.coords);
+                const li = document.createElement('li');
+                li.className = 'route-item';
+
+                li.innerHTML = `
+                    <div class="route-meta">
+                        <span class="color-indicator" style="background-color: ${route.color}"></span>
+                        <span title="${route.name}">${route.name.substring(0, 20)}${route.name.length > 20 ? '...' : ''} (<b>${currentDistance.toFixed(1)} km</b>)</span>
+                    </div>
+                `;
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.innerHTML = '&times;';
+                delBtn.onclick = () => removeWholeRoute(route.id);
+
+                li.appendChild(delBtn);
+                listEl.appendChild(li);
+            });
+        }
+
+        function updateSidebarWaypointList() {
+            const listEl = document.getElementById('waypoint-list');
+            listEl.innerHTML = '';
+
+            if (state.markers.length === 0) {
+                listEl.innerHTML = '<li class="wp-item" style="color: #7f8c8d; font-style: italic; padding: 8px 12px;">Ei pisteitä näkymässä</li>';
+                return;
+            }
+
+            state.markers.forEach((m, index) => {
+                const latlng = m.markerInstance.getLatLng();
+                const route = state.routes.find(r => r.id === m.routeId);
+                const rName = route ? route.name.substring(0, 8) : 'Ura';
+
+                const li = document.createElement('li');
+                li.className = 'route-item';
+                li.style.padding = '6px 12px';
+                li.innerHTML = `<span><b>${index + 1}. [${rName}]</b> (${latlng.lat.toFixed(3)}, ${latlng.lng.toFixed(3)})</span>`;
+                
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.innerHTML = '&times;';
+                delBtn.onclick = () => removeRoutePointRange(m.routeId, m.coordIndex, m.nextVisibleIndex);
+
+                li.appendChild(delBtn);
+                listEl.appendChild(li);
+            });
+        }
+
+        function removeWholeRoute(id) {
+            const routeToRemove = state.routes.find(r => r.id === id);
+            if (routeToRemove) {
+                map.removeLayer(routeToRemove.layer);
+                state.routes = state.routes.filter(r => r.id !== id);
+                
+                updateSidebarRouteList();
+                reparseAllGpxByCurrentBounds();
+                if (state.routes.length > 0) zoomToFitAllRoutes();
+            }
+        }
+
+        function clearAllRoutes() {
+            state.routes.forEach(r => map.removeLayer(r.layer));
+            state.markers.forEach(m => map.removeLayer(m.markerInstance));
+            
+            state.routes = [];
+            state.markers = [];
+            state.colorIndex = 0;
+
+            updateSidebarRouteList();
+            updateSidebarWaypointList();
+        }
+    </script>
+</body>
+</html>
