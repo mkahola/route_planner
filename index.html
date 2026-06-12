@@ -249,8 +249,7 @@
 
         async function fetchRouteSegment(start, end) {
             // Kutsutaan omaa Cloudflare Workeria OpenRouteServicen sijaan
-            const url = '/api/route';
-
+            const url = 'https://routeplanner.mika-kahola.workers.dev/';
             const avoidHighways = document.getElementById('avoid-highways-checkbox').checked;
 
             const body = {
