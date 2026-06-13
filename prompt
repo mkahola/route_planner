@@ -1,16 +1,16 @@
-Ole senioritasoinen web-kehittäjä ja rakenna html-pohjainen sovellus, jossa on karttapohja ja openrouteservicen reitinsuunnittelu siten, että karttapohjaan voi hiiren avulla klikata reittipisteitä. Reittipistettä voi siirtää pitämällä hiiren vasemman painikkeen pohjassa uuteen paikkaa karttapohjalla. Reittipiste ja reititys päivittyy, kun hiiren vasen painike vapautetaan,
+Ole senioritasoinen web-kehittäjä ja rakenna html-pohjainen sovellus, jossa on karttapohja ja openrouteservicen reitinsuunnittelu>
 
 Lisää mahdollisuus valita moottoriteiden välttämiseen.
 
-OpenRouteServicen API avain omassa resources.json tiedostossa.
+OpenRouteServicen ORS_API_KEY on tallennettu salattuna CloudFlaren workeriin ja asetetaan osoittamaan WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/'.
 
-Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan reittipisteeseen ja pidä loppu jäljestä koskemattomana.
+Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan re>
 
-Näytä maksimissaan 20 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuolella. Tuo reittipisteitä lisää niin, että zoom-tason kasvaessa reittipisteitä on 20 ja vastaavasti zoom-tason laskiessa reittipisteitä vähännetään kuitenkin niin, että karttapohjalla näkyy maksimissaan 20 reittipistettä. Toteuta tämä älykäs zoom-toiminto myös tuoduille gpx-tiedostoille.
+Näytä maksimissaan 20 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuol>
 
 Lisää mahdollisuus yhdistää yksi tai useampi jälki yhdeksi jäljeksi.
 
-Lisää mahdollisuus poistaa reittipiste kartalta ja reititä tämä osuus uudestaan. Kysy varmistus pisteen poistamiseksi "Poistetaanko piste" erillisessä pienessä ponnahdusikkunassa.
+Lisää mahdollisuus poistaa reittipiste kartalta ja reititä tämä osuus uudestaan. Kysy varmistus pisteen poistamiseksi "Poistetaan>
 
 Aseta otsikoksi "Reittisuunnittelu". Käytä samaa otsikkoa myös sidebarille.
 
