@@ -15,6 +15,7 @@
             --danger-color: #e74c3c;
             --bg-color: #ecf0f1;
             --text-color: #2c3e50;
+            --user-location-color: #007aff;
         }
 
         body {
@@ -87,6 +88,25 @@
         .flag-pole { position: absolute; bottom: 0; left: 0; width: 2.5px; height: 30px; background-color: #333; box-shadow: 1px 1px 1px rgba(0,0,0,0.3); }
         .flag-cloth { position: absolute; top: 0; left: 2.5px; width: 18px; height: 13px; border-radius: 1px 3px 3px 1px; box-shadow: 1px 1px 2px rgba(0,0,0,0.4); }
 
+        /* Sykkivä sininen pallo paikannukselle */
+        .user-location-ball {
+            width: 14px; height: 14px;
+            background-color: var(--user-location-color);
+            border: 3px solid white; border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+            position: relative;
+        }
+        .user-location-ball::after {
+            content: ''; position: absolute;
+            top: -3px; left: -3px; width: 14px; height: 14px;
+            border: 3px solid var(--user-location-color); border-radius: 50%;
+            animation: pulse 2s infinite ease-out; opacity: 0;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+
         .leaflet-div-icon { background: transparent !important; border: none !important; }
 
         /* Ponnahdusikkunan (Modal) tyylit */
@@ -147,7 +167,7 @@
             </div>
             <button id="merge-routes-btn" class="btn btn-success" style="display: none;">Yhdistä urat yhdeksi reitiksi</button>
             <button id="export-gpx-btn" class="btn btn-accent" style="display: none;">Lataa valmis GPX (.gpx)</button>
-            <button id="clear-btn" class="btn btn-danger">Tyhjennä kaikki</button>
+            <button id="clear-btn" class="btn btn-danger">Tyhnennä kaikki</button>
         </div>
 
         <h3>Aktiiviset reitit ja pituudet</h3>
@@ -178,16 +198,20 @@
             clickMarkers: [], 
             colorPalette: ['#3498db', '#9b59b6', '#2ecc71', '#e67e22', '#e74c3c', '#1abc9c'],
             colorIndex: 0,
-            pendingDeletion: null
+            pendingDeletion: null,
+            userLocationMarker: null
         };
 
+        // Oletuskeskitys Helsinkiin, jos paikannusta ei sallita tai se epäonnistuu
         const map = L.map('map', { tap: false }).setView([60.1699, 24.9384], 11);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Rekisteröidään dynaamisen näkymän päivitykset
+        // Käynnistetään paikannus heti sovelluksen latautuessa
+        initiateUserGeolocation();
+
         map.on('moveend', renderDynamicWaypoints);
         map.on('zoomend', renderDynamicWaypoints);
         map.on('click', async (e) => { await handleMapClick(e.latlng); });
@@ -200,7 +224,39 @@
         document.getElementById('modal-cancel-btn').addEventListener('click', closeConfirmationModal);
         document.getElementById('modal-confirm-btn').addEventListener('click', executeWaypointDeletion);
 
-        // Ramer-Douglas-Peucker koordinaattiharvennus suorituskykyä varten
+        // Geolocation-toiminnallisuus (GPS/Wi-Fi keskitus ja sininen pallo)
+        function initiateUserGeolocation() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        // Keskitetään kartta tarkasti lokaatioon
+                        map.setView([lat, lng], 14);
+
+                        const blueBallIcon = L.divIcon({
+                            className: 'user-location-icon',
+                            html: `<div class="user-location-ball"></div>`,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        });
+
+                        if (state.userLocationMarker) {
+                            map.removeLayer(state.userLocationMarker);
+                        }
+
+                        state.userLocationMarker = L.marker([lat, lng], { icon: blueBallIcon }).addTo(map);
+                    },
+                    (error) => {
+                        console.log("Paikannus estetty tai epäonnistui, käytetään oletuskarttaa.", error.message);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            }
+        }
+
+        // Ramer-Douglas-Peucker koordinaattiharvennus
         function simplifyCoordinates(points, tolerance) {
             if (points.length <= 2) return points;
             let maxSqDist = 0; let index = 0; const end = points.length - 1;
@@ -227,10 +283,7 @@
 
         async function fetchRouteSegment(start, end) {
             const avoidHighways = document.getElementById('avoid-highways-checkbox').checked;
-            
-            const body = {
-                coordinates: [[start[1], start[0]], [end[1], end[0]]]
-            };
+            const body = { coordinates: [[start[1], start[0]], [end[1], end[0]]] };
             
             if (avoidHighways) {
                 body.options = { avoid_features: ["highway"] };
@@ -253,12 +306,11 @@
             } catch (err) { 
                 console.error("Reititysvirhe proxy-palvelimen kautta:", err); 
             }
-            return [start, end]; // Varajärjestelmä: piirretään suora viiva jos haku epäonnistuu
+            return [start, end];
         }
 
         async function recalculateWholeRouteGeometry(route, deletedIndex = null, wasEdge = false) {
             if (wasEdge && deletedIndex !== null && route.coords.length > 0) {
-                // Jos poistettiin reitin päätepiste, katkaistaan geometrian häntä seuraavaan pisteeseen asti
                 if (deletedIndex === 0) {
                     const nextWp = route.waypoints[0];
                     let closestIdx = findClosestCoordinateIndex(route.coords, nextWp);
@@ -269,7 +321,6 @@
                     route.coords = route.coords.slice(0, closestIdx + 1);
                 }
             } else {
-                // Sisäpuolisen pisteen poisto tai siirto: lasketaan geometria uudelleen
                 let newCoords = [];
                 if (route.waypoints.length === 1) {
                     newCoords = [route.waypoints[0]];
@@ -302,7 +353,7 @@
             return targetIndex;
         }
 
-        // Dynaaminen pisteidenhallinta: max 20 pistettä näkyvissä + 1 näkymän ulkopuolella reitin alussa ja lopussa
+        // Pistehallinta: max 20 pistettä näkymässä + tasan 1 näkymän ulkopuolella molemmin puolin
         function renderDynamicWaypoints() {
             state.clickMarkers.forEach(m => map.removeLayer(m));
             state.clickMarkers = [];
@@ -313,7 +364,6 @@
             state.routes.forEach(route => {
                 if (!route.waypoints || route.waypoints.length === 0) return;
 
-                // Etsitään mitkä pisteet ovat parhaillaan kameran näkymässä
                 let insideIndices = [];
                 for (let i = 0; i < route.waypoints.length; i++) {
                     if (bounds.contains(L.latLng(route.waypoints[i][0], route.waypoints[i][1]))) {
@@ -324,7 +374,6 @@
                 let targetIndices = new Set();
 
                 if (insideIndices.length > 0) {
-                    // Otetaan tasaisin väliajoin enintään 20 pistettä ruudun sisäpuolelta
                     const maxInsidePoints = 20; 
                     const step = Math.max(1, Math.floor(insideIndices.length / maxInsidePoints));
                     
@@ -333,18 +382,16 @@
                     }
                     targetIndices.add(insideIndices[insideIndices.length - 1]);
 
-                    // Otetaan mukaan TÄSMÄLLEEN yksi piste näkymän ulkopuolelta ennen ja jälkeen (jos olemassa)
                     const firstInsideIndex = insideIndices[0];
                     if (firstInsideIndex > 0) {
-                        targetIndices.add(firstInsideIndex - 1);
+                        targetIndices.add(firstInsideIndex - 1); // 1 piste ennen karttanäkymää
                     }
 
                     const lastInsideIndex = insideIndices[insideIndices.length - 1];
                     if (lastInsideIndex < route.waypoints.length - 1) {
-                        targetIndices.add(lastInsideIndex + 1);
+                        targetIndices.add(lastInsideIndex + 1); // 1 piste karttanäkymän jälkeen
                     }
                 } else {
-                    // Jos koko ura on ruudun ulkopuolella, näytetään vain ääripäät
                     targetIndices.add(0);
                     targetIndices.add(route.waypoints.length - 1);
                 }
@@ -378,7 +425,6 @@
                     flagMarker.on('dragend', async (evt) => {
                         const newLatLng = evt.target.getLatLng();
                         route.waypoints[idx] = [newLatLng.lat, newLatLng.lng];
-                        
                         await recalculateWholeRouteGeometry(route);
                         renderDynamicWaypoints();
                     });
@@ -390,7 +436,6 @@
 
         function openConfirmationModal(routeId, waypointIndex) {
             state.pendingDeletion = { routeId, waypointIndex };
-            document.getElementById('modal-title-text').innerText = "Poistetaanko piste?";
             document.getElementById('confirm-modal').classList.add('active');
         }
 
@@ -424,7 +469,6 @@
             const newPoint = [latlng.lat, latlng.lng];
             let activeRoute = state.routes[state.routes.length - 1];
 
-            // Jos reittejä ei ole, alustetaan uusi vapaasti piirrettävä ura
             if (!activeRoute) {
                 const color = state.colorPalette[state.colorIndex % state.colorPalette.length];
                 state.colorIndex++;
@@ -489,7 +533,6 @@
 
                         const layer = L.polyline(rawCoords, { color: color, weight: 6, opacity: 0.85 }).addTo(map);
 
-                        // Muutetaan GPX:n tiheä dataloki dynaamisiksi hallintapisteiksi
                         const step = Math.max(1, Math.floor(rawCoords.length / 40));
                         const calculatedWaypoints = [];
                         for(let i=0; i<rawCoords.length; i+=step) {
@@ -512,7 +555,7 @@
                         zoomToFitAllRoutes();
                         renderDynamicWaypoints();
 
-                    } catch (err) { console.error("Virhe ladattaessa GPX-tiedostoa: ", err); }
+                    } catch (err) { console.error("Virhe ladattaessa GPX:ää: ", err); }
                 };
                 reader.readAsText(file);
             });
@@ -535,7 +578,6 @@
                     const lastPointOfProgress = finalMergedCoords[finalMergedCoords.length - 1];
                     const firstPointOfNextRoute = currentRoute.coords[0];
 
-                    // Luodaan siirtymäreitti kahden GPX-uran välille OpenRouteServicellä
                     const bridge = await fetchRouteSegment(lastPointOfProgress, firstPointOfNextRoute);
                     finalMergedCoords.push(...bridge.slice(1));
                     finalMergedCoords.push(...currentRoute.coords.slice(1));
@@ -603,7 +645,7 @@
             for (let i = 0; i < coords.length - 1; i++) {
                 totalDist += L.latLng(coords[i][0], coords[i][1]).distanceTo(L.latLng(coords[i+1][0], coords[i+1][1]));
             }
-            return totalDist / 1000; // Palautetaan kilometreinä
+            return totalDist / 1000;
         }
 
         function zoomToFitAllRoutes() {
@@ -668,7 +710,6 @@
             if (routeToRemove) {
                 map.removeLayer(routeToRemove.layer);
                 state.routes = state.routes.filter(r => r.id !== id);
-                
                 updateSidebarRouteList();
                 renderDynamicWaypoints();
                 if (state.routes.length > 0) zoomToFitAllRoutes();
@@ -678,7 +719,6 @@
         function clearAllRoutes() {
             state.routes.forEach(r => map.removeLayer(r.layer));
             state.clickMarkers.forEach(m => map.removeLayer(m)); 
-            
             state.routes = [];
             state.clickMarkers = [];
             state.colorIndex = 0;
@@ -687,4 +727,3 @@
     </script>
 </body>
 </html>
-
