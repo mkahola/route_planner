@@ -69,8 +69,9 @@
 
         .instruction { font-size: 0.85rem; color: #7f8c8d; font-style: italic; margin-bottom: 15px; line-height: 1.4; }
 
-        #api-status { font-size: 0.8rem; margin-bottom: 15px; padding: 8px 12px; border-radius: 4px; font-weight: bold; line-height: 1.4; }
+        #api-status { font-size: 0.85rem; margin-bottom: 15px; padding: 10px 12px; border-radius: 4px; font-weight: bold; line-height: 1.4; text-align: center; }
         .status-ok { background: #badc58; color: #27ae60; }
+        .status-readonly { background: var(--danger-color); color: white; }
 
         .route-list { list-style: none; padding: 0; margin: 0; border: 1px solid var(--bg-color); border-radius: 4px; max-height: 200px; overflow-y: auto; }
         .route-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--bg-color); font-size: 1.05rem; background: #fff; }
@@ -88,7 +89,7 @@
         .flag-pole { position: absolute; bottom: 0; left: 0; width: 2.5px; height: 30px; background-color: #333; box-shadow: 1px 1px 1px rgba(0,0,0,0.3); }
         .flag-cloth { position: absolute; top: 0; left: 2.5px; width: 18px; height: 13px; border-radius: 1px 3px 3px 1px; box-shadow: 1px 1px 2px rgba(0,0,0,0.4); }
 
-        /* Sykkivä sininen pallo paikannukselle */
+        /* Sykkivä pallo paikannukselle */
         .user-location-ball {
             width: 14px; height: 14px;
             background-color: var(--user-location-color);
@@ -131,18 +132,24 @@
         .modal-btn-cancel { background: #bdc3c7; color: var(--primary-color); }
         .modal-btn-cancel:hover { background: #95a5a6; }
 
-        /* Mobiilimukautukset */
+        /* Mobiilimukautukset ja rullattava alarivi */
         @media (max-width: 768px) {
             body { flex-direction: column-reverse; }
             #sidebar {
-                width: 100%; max-height: 42vh; height: auto;
-                padding: 15px; box-shadow: 0 -2px 15px rgba(0,0,0,0.15);
+                width: 100%; 
+                max-height: 40vh; /* Palkki kaappaa maksimissaan 40 % ruudusta */
+                height: auto;
+                padding: 15px; 
+                box-shadow: 0 -2px 15px rgba(0,0,0,0.15);
                 border-top: 1px solid var(--bg-color);
+                overflow-y: auto; /* Mahdollistaa koko palkin vierittämisen alaspäin mobiilissa */
+                -webkit-overflow-scrolling: touch; /* Sulava inertiavieritys iOS-laitteille */
             }
-            #map { flex-grow: 1; height: 58vh; }
+            #map { flex-grow: 1; height: 60vh; }
             h2 { font-size: 1.3rem; padding-bottom: 5px; }
             h3 { margin-top: 10px; font-size: 1.1rem; }
             .btn { padding: 12px; margin-bottom: 6px; }
+            .route-list { max-height: 140px; } /* Estetään reittilistan liiallinen paisuminen mobiilissa */
         }
     </style>
 </head>
@@ -151,14 +158,14 @@
     <div id="sidebar">
         <h2>Reittisuunnittelu</h2>
         
-        <div id="api-status" class="status-ok">Yhteys suojattu Cloudflare Workerilla</div>
+        <div id="api-status" class="status-ok">Tarkistetaan yhteyttä...</div>
 
         <label class="checkbox-container">
             <input type="checkbox" id="avoid-highways-checkbox">
             Vältä moottoriteitä
         </label>
 
-        <p class="instruction">Klikkaa karttaa lisätäksesi pisteitä. Siirrä vetämällä ja poista napauttamalla lippua.</p>
+        <p id="helper-instruction" class="instruction">Klikkaa karttaa lisätäksesi pisteitä. Siirrä vetämällä ja poista napauttamalla lippua.</p>
 
         <div class="control-group">
             <div class="file-upload">
@@ -167,7 +174,7 @@
             </div>
             <button id="merge-routes-btn" class="btn btn-success" style="display: none;">Yhdistä urat yhdeksi reitiksi</button>
             <button id="export-gpx-btn" class="btn btn-accent" style="display: none;">Lataa valmis GPX (.gpx)</button>
-            <button id="clear-btn" class="btn btn-danger">Tyhnennä kaikki</button>
+            <button id="clear-btn" class="btn btn-danger">Tyhjennä kaikki</button>
         </div>
 
         <h3>Aktiiviset reitit ja pituudet</h3>
@@ -194,6 +201,7 @@
         const WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/';
 
         const state = {
+            isReadOnly: false,
             routes: [],     
             clickMarkers: [], 
             colorPalette: ['#3498db', '#9b59b6', '#2ecc71', '#e67e22', '#e74c3c', '#1abc9c'],
@@ -202,14 +210,14 @@
             userLocationMarker: null
         };
 
-        // Oletuskeskitys Helsinkiin, jos paikannusta ei sallita tai se epäonnistuu
         const map = L.map('map', { tap: false }).setView([60.1699, 24.9384], 11);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Käynnistetään paikannus heti sovelluksen latautuessa
+        // Alustetaan järjestelmät ja tarkistetaan Workerin tila
+        checkWorkerBackendStatus();
         initiateUserGeolocation();
 
         map.on('moveend', renderDynamicWaypoints);
@@ -224,7 +232,28 @@
         document.getElementById('modal-cancel-btn').addEventListener('click', closeConfirmationModal);
         document.getElementById('modal-confirm-btn').addEventListener('click', executeWaypointDeletion);
 
-        // Geolocation-toiminnallisuus (GPS/Wi-Fi keskitus ja sininen pallo)
+        // Senior-tason validointi taustajärjestelmän valmiustilalle
+        async function checkWorkerBackendStatus() {
+            const statusEl = document.getElementById('api-status');
+            const instructionEl = document.getElementById('helper-instruction');
+            try {
+                const response = await fetch(WORKER_URL, { method: 'GET' });
+                if (response.ok) {
+                    statusEl.className = "status-ok";
+                    statusEl.innerText = "Yhteys suojattu Cloudflare Workerilla";
+                    state.isReadOnly = false;
+                } else {
+                    throw new Error("API_KEY_MISSING");
+                }
+            } catch (err) {
+                statusEl.className = "status-readonly";
+                statusEl.innerText = "Vain katselutila";
+                instructionEl.innerText = "Reitityspalvelin on katselutilassa. Voit tuoda ja tarkastella valmiita GPX-jälkiä.";
+                state.isReadOnly = true;
+            }
+        }
+
+        // Laitteen haku (GPS / Wi-Fi solut)
         function initiateUserGeolocation() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
@@ -232,7 +261,6 @@
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
                         
-                        // Keskitetään kartta tarkasti lokaatioon
                         map.setView([lat, lng], 14);
 
                         const blueBallIcon = L.divIcon({
@@ -242,21 +270,16 @@
                             iconAnchor: [10, 10]
                         });
 
-                        if (state.userLocationMarker) {
-                            map.removeLayer(state.userLocationMarker);
-                        }
-
+                        if (state.userLocationMarker) map.removeLayer(state.userLocationMarker);
                         state.userLocationMarker = L.marker([lat, lng], { icon: blueBallIcon }).addTo(map);
                     },
-                    (error) => {
-                        console.log("Paikannus estetty tai epäonnistui, käytetään oletuskarttaa.", error.message);
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    (error) => { console.log("Sijaintipyyntö evätty tai aikakatkaistu.", error.message); },
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
                 );
             }
         }
 
-        // Ramer-Douglas-Peucker koordinaattiharvennus
+        // Ramer-Douglas-Peucker algoritmipohjainen pisteiden optimointi
         function simplifyCoordinates(points, tolerance) {
             if (points.length <= 2) return points;
             let maxSqDist = 0; let index = 0; const end = points.length - 1;
@@ -282,6 +305,8 @@
         }
 
         async function fetchRouteSegment(start, end) {
+            if (state.isReadOnly) return [start, end];
+
             const avoidHighways = document.getElementById('avoid-highways-checkbox').checked;
             const body = { coordinates: [[start[1], start[0]], [end[1], end[0]]] };
             
@@ -303,14 +328,13 @@
                         return simplifyCoordinates(segment, 0.0001);
                     }
                 }
-            } catch (err) { 
-                console.error("Reititysvirhe proxy-palvelimen kautta:", err); 
-            }
+            } catch (err) { console.error("API-yhteysvirhe:", err); }
             return [start, end];
         }
 
         async function recalculateWholeRouteGeometry(route, deletedIndex = null, wasEdge = false) {
             if (wasEdge && deletedIndex !== null && route.coords.length > 0) {
+                // Vaatimus: Jos alku- tai loppupiste poistetaan, poistetaan vain jälki seuraavaan reittipisteeseen asti
                 if (deletedIndex === 0) {
                     const nextWp = route.waypoints[0];
                     let closestIdx = findClosestCoordinateIndex(route.coords, nextWp);
@@ -321,6 +345,7 @@
                     route.coords = route.coords.slice(0, closestIdx + 1);
                 }
             } else {
+                // Sisäpuolinen muutos: reititetään kyseinen osuus uudestaan
                 let newCoords = [];
                 if (route.waypoints.length === 1) {
                     newCoords = [route.waypoints[0]];
@@ -353,7 +378,7 @@
             return targetIndex;
         }
 
-        // Pistehallinta: max 20 pistettä näkymässä + tasan 1 näkymän ulkopuolella molemmin puolin
+        // Vaatimus: Näytä maksimissaan 20 pistettä siten, että yksi piste on ennen ja jälkeen karttapohjan ulkopuolella
         function renderDynamicWaypoints() {
             state.clickMarkers.forEach(m => map.removeLayer(m));
             state.clickMarkers = [];
@@ -384,12 +409,12 @@
 
                     const firstInsideIndex = insideIndices[0];
                     if (firstInsideIndex > 0) {
-                        targetIndices.add(firstInsideIndex - 1); // 1 piste ennen karttanäkymää
+                        targetIndices.add(firstInsideIndex - 1); // Yksi piste ennen näkymää
                     }
 
                     const lastInsideIndex = insideIndices[insideIndices.length - 1];
                     if (lastInsideIndex < route.waypoints.length - 1) {
-                        targetIndices.add(lastInsideIndex + 1); // 1 piste karttanäkymän jälkeen
+                        targetIndices.add(lastInsideIndex + 1); // Yksi piste näkymän jälkeen
                     }
                 } else {
                     targetIndices.add(0);
@@ -403,7 +428,7 @@
                     const flagIcon = L.divIcon({
                         className: 'custom-flag-icon',
                         html: `
-                            <div class="flag-icon-container" title="Siirrä vetämällä, poista napauttamalla">
+                            <div class="flag-icon-container" title="Siirrä tai poista piste">
                                 <div class="flag-pole"></div>
                                 <div class="flag-cloth" style="background-color: ${route.color};"></div>
                             </div>
@@ -412,9 +437,10 @@
                         iconAnchor: [1, 30]
                     });
 
+                    // Estetään pisteiden siirtäminen jos ollaan katselutilassa
                     const flagMarker = L.marker([coord[0], coord[1]], { 
                         icon: flagIcon,
-                        draggable: true 
+                        draggable: !state.isReadOnly 
                     }).addTo(map);
                     
                     flagMarker.on('click', (evt) => {
@@ -436,6 +462,7 @@
 
         function openConfirmationModal(routeId, waypointIndex) {
             state.pendingDeletion = { routeId, waypointIndex };
+            document.getElementById('modal-title-text').innerText = "Poistetaanko piste?";
             document.getElementById('confirm-modal').classList.add('active');
         }
 
@@ -466,6 +493,8 @@
         }
 
         async function handleMapClick(latlng) {
+            if (state.isReadOnly) return; // Klikkaus estetty vikasietotilassa
+
             const newPoint = [latlng.lat, latlng.lng];
             let activeRoute = state.routes[state.routes.length - 1];
 
@@ -533,7 +562,7 @@
 
                         const layer = L.polyline(rawCoords, { color: color, weight: 6, opacity: 0.85 }).addTo(map);
 
-                        const step = Math.max(1, Math.floor(rawCoords.length / 40));
+                        const step = Math.max(1, Math.floor(rawCoords.length / 30));
                         const calculatedWaypoints = [];
                         for(let i=0; i<rawCoords.length; i+=step) {
                             calculatedWaypoints.push(rawCoords[i]);
@@ -555,13 +584,14 @@
                         zoomToFitAllRoutes();
                         renderDynamicWaypoints();
 
-                    } catch (err) { console.error("Virhe ladattaessa GPX:ää: ", err); }
+                    } catch (err) { console.error("GPX-lukuvirhe: ", err); }
                 };
                 reader.readAsText(file);
             });
             e.target.value = '';
         }
 
+        // Jälkien yhdistäminen älykkäällä liitossillalla
         async function mergeAllActiveRoutes() {
             if (state.routes.length < 2) return;
 
@@ -645,7 +675,7 @@
             for (let i = 0; i < coords.length - 1; i++) {
                 totalDist += L.latLng(coords[i][0], coords[i][1]).distanceTo(L.latLng(coords[i+1][0], coords[i+1][1]));
             }
-            return totalDist / 1000;
+            return totalDist / 1000; // Kilometrit
         }
 
         function zoomToFitAllRoutes() {
@@ -687,7 +717,7 @@
                 li.innerHTML = `
                     <div class="route-meta">
                         <span class="color-indicator" style="background-color: ${route.color}"></span>
-                        <span title="${route.name}">${route.name.substring(0, 14)}${route.name.length > 14 ? '...' : ''}</span>
+                        <span title="${route.name}">${route.name.substring(0, 12)}${route.name.length > 12 ? '...' : ''}</span>
                         <span class="route-distance"><b>${currentDistance.toFixed(1)} km</b></span>
                     </div>
                 `;

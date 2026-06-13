@@ -1,16 +1,16 @@
-Ole senioritasoinen web-kehittäjä ja rakenna html-pohjainen sovellus, jossa on karttapohja ja openrouteservicen reitinsuunnittelu>
+Ole senioritasoinen web-kehittäjä ja rakenna html-pohjainen sovellus, jossa on karttapohja ja openrouteservicen reitinsuunnittelua hyödyntävä reititys.
 
 Lisää mahdollisuus valita moottoriteiden välttämiseen.
 
-OpenRouteServicen ORS_API_KEY on tallennettu salattuna CloudFlaren workeriin ja asetetaan osoittamaan WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/'.
+OpenRouteServicen ORS_API_KEY on tallennettu salattuna CloudFlaren workeriin ja asetetaan osoittamaan WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/'. Näytä vain infopalkki punaisella, jos reititys ei ole käytössä vaan sivu on vain katselu-tilassa. Ilmoita tästä palkissa "Vain katselutila"
 
-Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan re>
+Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan reittipisteeseen.
 
-Näytä maksimissaan 20 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuol>
+Näytä maksimissaan 20 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuolella
 
 Lisää mahdollisuus yhdistää yksi tai useampi jälki yhdeksi jäljeksi.
 
-Lisää mahdollisuus poistaa reittipiste kartalta ja reititä tämä osuus uudestaan. Kysy varmistus pisteen poistamiseksi "Poistetaan>
+Lisää mahdollisuus poistaa reittipiste kartalta ja reititä tämä osuus uudestaan. Kysy varmistus pisteen poistamiseksi "Poistetaanko piste?"
 
 Aseta otsikoksi "Reittisuunnittelu". Käytä samaa otsikkoa myös sidebarille.
 
@@ -20,5 +20,4 @@ Lisää mahdollisuus tallentaa GPX-jälki paikallisesti Downloads hakemistoon.
 
 Jos lokaatio on tiedossa joko GPS:n tai WiFin kautta, keskitä kartta niin, että lokaation on kartan keskipisteenä. Piirää lokaatio sinisenä pallona.
 
-Pyri optimoimaan sivy myös mobiililaitteille.
-
+Optimoi sivu myös mobiililaitteille. Jos alarivin palkki on pidempi kuin ruudulle mahtuu, lisää mahdollisuus vierittää palkkia alaspäin, jolloin kaikki tiedot tulevat näkyviin.
