@@ -2,7 +2,7 @@ Ole senioritasoinen web-kehittäjä ja rakenna html-pohjainen sovellus, jossa on
 
 Lisää mahdollisuus valita moottoriteiden välttämiseen.
 
-OpenRouteServicen ORS_API_KEY on tallennettu salattuna CloudFlaren workeriin ja asetetaan osoittamaan WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/'. Näytä vain infopalkki punaisella, jos reititys ei ole käytössä vaan sivu on vain katselu-tilassa. Ilmoita tästä palkissa "Vain katselutila"
+OpenRouteServicen ORS_API_KEY on tallennettu salattuna CloudFlaren workeriin ja asetetaan osoittamaan WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/'. Älä näytä infoa "yhteys suojattu Cloudflare Workerilla" vaan vain siinä tapauksessa, että sivu on vain katselu-tilassa. Ilmoita tästä palkissa "Vain katselutila käytössä"
 
 Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan reittipisteeseen.
 

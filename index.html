@@ -69,9 +69,19 @@
 
         .instruction { font-size: 0.85rem; color: #7f8c8d; font-style: italic; margin-bottom: 15px; line-height: 1.4; }
 
-        #api-status { font-size: 0.85rem; margin-bottom: 15px; padding: 10px 12px; border-radius: 4px; font-weight: bold; line-height: 1.4; text-align: center; }
-        .status-ok { background: #badc58; color: #27ae60; }
-        .status-readonly { background: var(--danger-color); color: white; }
+        /* Katselutilan infopalkki - oletuksena piilotettu */
+        #api-status { 
+            display: none; 
+            font-size: 0.85rem; 
+            margin-bottom: 15px; 
+            padding: 10px 12px; 
+            border-radius: 4px; 
+            font-weight: bold; 
+            line-height: 1.4; 
+            text-align: center; 
+            background: var(--danger-color); 
+            color: white; 
+        }
 
         .route-list { list-style: none; padding: 0; margin: 0; border: 1px solid var(--bg-color); border-radius: 4px; max-height: 200px; overflow-y: auto; }
         .route-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--bg-color); font-size: 1.05rem; background: #fff; }
@@ -149,7 +159,7 @@
             h2 { font-size: 1.3rem; padding-bottom: 5px; }
             h3 { margin-top: 10px; font-size: 1.1rem; }
             .btn { padding: 12px; margin-bottom: 6px; }
-            .route-list { max-height: 140px; } /* Estetään reittilistan liiallinen paisuminen mobiilissa */
+            .route-list { max-height: 140px; } 
         }
     </style>
 </head>
@@ -158,7 +168,7 @@
     <div id="sidebar">
         <h2>Reittisuunnittelu</h2>
         
-        <div id="api-status" class="status-ok">Tarkistetaan yhteyttä...</div>
+        <div id="api-status">Vain katselutila käytössä</div>
 
         <label class="checkbox-container">
             <input type="checkbox" id="avoid-highways-checkbox">
@@ -210,13 +220,14 @@
             userLocationMarker: null
         };
 
+        // Alustetaan kartta oletuksena Helsinkiin
         const map = L.map('map', { tap: false }).setView([60.1699, 24.9384], 11);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Alustetaan järjestelmät ja tarkistetaan Workerin tila
+        // Suoritetaan taustajärjestelmän tarkistus ja paikannus
         checkWorkerBackendStatus();
         initiateUserGeolocation();
 
@@ -232,28 +243,28 @@
         document.getElementById('modal-cancel-btn').addEventListener('click', closeConfirmationModal);
         document.getElementById('modal-confirm-btn').addEventListener('click', executeWaypointDeletion);
 
-        // Senior-tason validointi taustajärjestelmän valmiustilalle
+        // Katselutilan tarkistuslogiikka
         async function checkWorkerBackendStatus() {
             const statusEl = document.getElementById('api-status');
             const instructionEl = document.getElementById('helper-instruction');
             try {
                 const response = await fetch(WORKER_URL, { method: 'GET' });
                 if (response.ok) {
-                    statusEl.className = "status-ok";
-                    statusEl.innerText = "Yhteys suojattu Cloudflare Workerilla";
+                    // Jos kaikki ok, pidetään palkki kokonaan piilossa pyynnön mukaisesti
+                    statusEl.style.display = 'none';
                     state.isReadOnly = false;
                 } else {
-                    throw new Error("API_KEY_MISSING");
+                    throw new Error("API_KEY_ERROR");
                 }
             } catch (err) {
-                statusEl.className = "status-readonly";
-                statusEl.innerText = "Vain katselutila";
+                // Virhetilanteessa näytetään punainen "Vain katselutila käytössä" -palkki
+                statusEl.style.display = 'block';
                 instructionEl.innerText = "Reitityspalvelin on katselutilassa. Voit tuoda ja tarkastella valmiita GPX-jälkiä.";
                 state.isReadOnly = true;
             }
         }
 
-        // Laitteen haku (GPS / Wi-Fi solut)
+        // GPS / Wi-Fi paikannus
         function initiateUserGeolocation() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
@@ -273,13 +284,13 @@
                         if (state.userLocationMarker) map.removeLayer(state.userLocationMarker);
                         state.userLocationMarker = L.marker([lat, lng], { icon: blueBallIcon }).addTo(map);
                     },
-                    (error) => { console.log("Sijaintipyyntö evätty tai aikakatkaistu.", error.message); },
+                    (error) => { console.log("Paikannus epäonnistui tai evättiin.", error.message); },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
                 );
             }
         }
 
-        // Ramer-Douglas-Peucker algoritmipohjainen pisteiden optimointi
+        // Ramer-Douglas-Peucker koordinaattisuodatus suorituskykyä varten
         function simplifyCoordinates(points, tolerance) {
             if (points.length <= 2) return points;
             let maxSqDist = 0; let index = 0; const end = points.length - 1;
@@ -328,13 +339,13 @@
                         return simplifyCoordinates(segment, 0.0001);
                     }
                 }
-            } catch (err) { console.error("API-yhteysvirhe:", err); }
+            } catch (err) { console.error("Reitityshakuvirhe:", err); }
             return [start, end];
         }
 
         async function recalculateWholeRouteGeometry(route, deletedIndex = null, wasEdge = false) {
             if (wasEdge && deletedIndex !== null && route.coords.length > 0) {
-                // Vaatimus: Jos alku- tai loppupiste poistetaan, poistetaan vain jälki seuraavaan reittipisteeseen asti
+                // Sääntö: Jos reitin alku- tai loppupiste poistetaan, katkaistaan vain seuraavaan reittipisteeseen asti
                 if (deletedIndex === 0) {
                     const nextWp = route.waypoints[0];
                     let closestIdx = findClosestCoordinateIndex(route.coords, nextWp);
@@ -345,7 +356,7 @@
                     route.coords = route.coords.slice(0, closestIdx + 1);
                 }
             } else {
-                // Sisäpuolinen muutos: reititetään kyseinen osuus uudestaan
+                // Sisäinen reittipiste poistettu tai siirretty -> reititetään kyseinen osuus uudelleen
                 let newCoords = [];
                 if (route.waypoints.length === 1) {
                     newCoords = [route.waypoints[0]];
@@ -378,7 +389,7 @@
             return targetIndex;
         }
 
-        // Vaatimus: Näytä maksimissaan 20 pistettä siten, että yksi piste on ennen ja jälkeen karttapohjan ulkopuolella
+        // Pisteiden dynaaminen rajaus: max 20 näkymässä + 1 sen ulkopuolella molemmin puolin
         function renderDynamicWaypoints() {
             state.clickMarkers.forEach(m => map.removeLayer(m));
             state.clickMarkers = [];
@@ -409,12 +420,12 @@
 
                     const firstInsideIndex = insideIndices[0];
                     if (firstInsideIndex > 0) {
-                        targetIndices.add(firstInsideIndex - 1); // Yksi piste ennen näkymää
+                        targetIndices.add(firstInsideIndex - 1); 
                     }
 
                     const lastInsideIndex = insideIndices[insideIndices.length - 1];
                     if (lastInsideIndex < route.waypoints.length - 1) {
-                        targetIndices.add(lastInsideIndex + 1); // Yksi piste näkymän jälkeen
+                        targetIndices.add(lastInsideIndex + 1); 
                     }
                 } else {
                     targetIndices.add(0);
@@ -437,7 +448,6 @@
                         iconAnchor: [1, 30]
                     });
 
-                    // Estetään pisteiden siirtäminen jos ollaan katselutilassa
                     const flagMarker = L.marker([coord[0], coord[1]], { 
                         icon: flagIcon,
                         draggable: !state.isReadOnly 
@@ -493,7 +503,7 @@
         }
 
         async function handleMapClick(latlng) {
-            if (state.isReadOnly) return; // Klikkaus estetty vikasietotilassa
+            if (state.isReadOnly) return; 
 
             const newPoint = [latlng.lat, latlng.lng];
             let activeRoute = state.routes[state.routes.length - 1];
@@ -584,14 +594,13 @@
                         zoomToFitAllRoutes();
                         renderDynamicWaypoints();
 
-                    } catch (err) { console.error("GPX-lukuvirhe: ", err); }
+                    } catch (err) { console.error("Virhe GPX-parsinnassa: ", err); }
                 };
                 reader.readAsText(file);
             });
             e.target.value = '';
         }
 
-        // Jälkien yhdistäminen älykkäällä liitossillalla
         async function mergeAllActiveRoutes() {
             if (state.routes.length < 2) return;
 
@@ -675,7 +684,7 @@
             for (let i = 0; i < coords.length - 1; i++) {
                 totalDist += L.latLng(coords[i][0], coords[i][1]).distanceTo(L.latLng(coords[i+1][0], coords[i+1][1]));
             }
-            return totalDist / 1000; // Kilometrit
+            return totalDist / 1000; 
         }
 
         function zoomToFitAllRoutes() {
