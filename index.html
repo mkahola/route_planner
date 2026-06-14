@@ -48,7 +48,7 @@
             transition: 0.3s;
         }
 
-        /* Sivupalkki (Sidebar) toiminnallisuuksille */
+        /* Sivupalkki (Sidebar) */
         #sidebar {
             position: absolute; top: 0; left: -380px; width: 350px; height: 100%;
             background: white; box-shadow: 4px 0 15px rgba(0,0,0,0.15);
@@ -57,24 +57,19 @@
             overflow-y: auto; transition: left 0.3s ease;
         }
         #sidebar.open { left: 0; }
+        #sidebar h2 { margin-top: 0; color: var(--primary-color); border-bottom: 2px solid var(--bg-color); padding-bottom: 8px; font-size: 1.4rem; }
 
-        /* Aktiivisten reittien ikkuna vasempaan alakulmaan */
-        #info-widget {
-            position: absolute; bottom: 25px; left: 25px; z-index: 1000;
-            width: 320px; max-height: 250px; background: white;
-            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            padding: 15px; box-sizing: border-box; display: flex; flex-direction: column;
-            overflow: hidden;
+        /* Tilarivi (Vain katselutilassa näkyvä ilmoitus) */
+        #api-status { 
+            display: none; font-size: 0.9rem; margin-bottom: 15px; padding: 10px; 
+            border-radius: 6px; font-weight: bold; text-align: center; 
+            background: var(--danger-color); color: white; 
         }
-
-        h2, h3 { margin-top: 0; color: var(--primary-color); border-bottom: 2px solid var(--bg-color); padding-bottom: 8px; }
-        h2 { font-size: 1.4rem; }
-        h3 { font-size: 1.1rem; margin-bottom: 10px; padding-bottom: 5px;}
 
         .checkbox-container {
             display: flex; align-items: center; gap: 8px;
             margin: 12px 0; font-weight: 600; font-size: 0.95rem;
-            background: var(--bg-color); padding: 10px; border-radius: 4px;
+            background: var(--bg-color); padding: 12px; border-radius: 6px;
         }
         .checkbox-container input { width: 18px; height: 18px; cursor: pointer; }
 
@@ -82,7 +77,7 @@
             color: white; border: none; padding: 12px 15px; border-radius: 6px;
             cursor: pointer; font-weight: bold; width: 100%; transition: background 0.2s;
             margin-bottom: 8px; display: block; text-align: center; box-sizing: border-box; font-size: 0.95rem;
-            text-decoration: none;
+            text-decoration: none; -webkit-tap-highlight-color: transparent;
         }
         .btn-success { background: var(--success-color); }
         .btn-success:hover { background: #27ae60; }
@@ -95,36 +90,54 @@
 
         .file-upload { position: relative; display: inline-block; width: 100%; margin-bottom: 8px; }
         .file-upload input[type="file"] { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-
         .instruction { font-size: 0.85rem; color: #7f8c8d; font-style: italic; margin-bottom: 15px; line-height: 1.4; }
 
-        #api-status { 
-            display: none; font-size: 0.85rem; margin-bottom: 15px; padding: 8px; 
-            border-radius: 4px; font-weight: bold; text-align: center; 
-            background: var(--danger-color); color: white; 
+        /* --- INFO-WIDGET TYÖPÖYDÄLLÄ --- */
+        #info-widget {
+            position: absolute; bottom: 25px; left: 25px; z-index: 1000;
+            width: 340px; max-height: 280px; background: white;
+            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            padding: 15px; box-sizing: border-box; display: flex; flex-direction: column;
+            overflow: hidden;
         }
 
-        /* Rullattava reittilista alareunan ikkunassa */
-        .route-list-container {
-            flex-grow: 1; overflow-y: auto; max-height: 180px;
-            -webkit-overflow-scrolling: touch;
+        #info-widget h3 { 
+            margin-top: 0; margin-bottom: 10px; padding-bottom: 8px;
+            color: var(--primary-color); border-bottom: 2px solid var(--bg-color); 
+            font-size: 1.1rem; font-weight: 700; flex-shrink: 0;
+            text-align: left;
         }
-        .route-list { list-style: none; padding: 0; margin: 0; }
-        .route-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--bg-color); font-size: 0.95rem; }
-        .route-item:last-child { border-bottom: none; }
         
-        .route-meta { display: flex; align-items: center; gap: 8px; font-weight: 500; overflow: hidden; }
-        .color-indicator { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-        .route-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
-        .route-distance { font-size: 1rem; color: var(--primary-color); font-weight: bold; white-space: nowrap; }
-        .delete-btn { background: none; border: none; color: var(--danger-color); cursor: pointer; font-weight: bold; font-size: 1.3rem; padding: 0 4px; }
+        .route-list-container { flex-grow: 1; overflow-y: auto; display: block; }
+        .route-list { list-style: none; padding: 0; margin: 0; display: block; }
+        
+        .route-item { 
+            display: flex !important; justify-content: space-between !important; align-items: center !important; 
+            padding: 8px 0 !important; border-bottom: 1px solid var(--bg-color) !important;
+        }
+        .route-item:last-child { border-bottom: none !important; }
+        .route-meta { display: flex !important; align-items: center !important; gap: 10px !important; overflow: hidden !important; flex-grow: 1 !important; }
+        .color-indicator { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+        
+        .route-name { 
+            font-size: 0.95rem !important; color: var(--text-color) !important; font-weight: 500 !important;
+            overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; max-width: 140px !important; display: inline-block !important;
+        }
+        .route-distance { 
+            font-size: 1rem !important; color: var(--primary-color) !important; font-weight: 700 !important; white-space: nowrap !important;
+            display: inline-block !important; margin-left: auto !important; margin-right: 12px !important;
+        }
+        .delete-btn { 
+            background: none !important; border: none !important; color: var(--danger-color) !important; cursor: pointer; 
+            font-weight: bold !important; font-size: 1.4rem !important; padding: 0 4px !important; flex-shrink: 0 !important;
+        }
 
-        /* Lipun kuvakeasetukset */
+        /* Lippukuvakkeet reittipisteille */
         .flag-icon-container { position: relative; width: 24px; height: 30px; }
         .flag-pole { position: absolute; bottom: 0; left: 0; width: 2px; height: 30px; background-color: #333; }
         .flag-cloth { position: absolute; top: 0; left: 2px; width: 16px; height: 12px; border-radius: 1px 2px 2px 1px; }
 
-        /* Sykkivä pallo paikannukselle */
+        /* Sijaintipallon tyylit */
         .user-location-ball {
             width: 14px; height: 14px; background-color: var(--user-location-color);
             border: 3px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(0, 0, 0, 0.4); position: relative;
@@ -137,34 +150,72 @@
             0% { transform: scale(1); opacity: 0.7; }
             100% { transform: scale(2.5); opacity: 0; }
         }
-
         .leaflet-div-icon { background: transparent !important; border: none !important; }
 
-        /* Ponnahdusikkunan (Modal) tyylit */
+        /* Varmistusikkuna */
         .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.5); z-index: 2000;
-            display: flex; align-items: center; justify-content: center;
-            opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000;
+            display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
         }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal-content {
-            background: white; padding: 20px; border-radius: 8px; width: 260px; text-align: center;
-        }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 260px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         .modal-text { font-size: 1.05rem; font-weight: 600; margin-bottom: 20px; }
         .modal-buttons { display: flex; gap: 10px; justify-content: center; }
         .modal-btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .modal-btn-confirm { background: var(--danger-color); color: white; }
         .modal-btn-cancel { background: #bdc3c7; }
 
-        /* Mobiilimukautukset ja rullattava alarivi */
+        /* --- VAADITTU SPESIFI BOTTOM SHEET MOBIILIMEDIASYÖTE --- */
         @media (max-width: 768px) {
             #sidebar { width: 100%; left: -100%; }
+            
+            /* Sijoitetaan widget pomminvarmasti kartan päälle */
             #info-widget {
-                left: 10px; bottom: 10px; width: calc(100% - 20px); 
-                max-height: 160px; padding: 12px;
+                position: fixed !important; left: 0 !important; bottom: 0 !important; right: 0 !important; width: 100% !important; 
+                height: 65px !important; max-height: 65px !important; /* Supistettu tila vaatimuksen mukaan */
+                padding: 0 20px !important; margin: 0 !important;
+                border-radius: 16px 16px 0 0 !important; box-shadow: 0 -5px 25px rgba(0,0,0,0.25) !important;
+                background: #ffffff !important; z-index: 9999 !important; 
+                display: flex !important; flex-direction: column !important; box-sizing: border-box !important;
+                overflow: hidden !important; transition: height 0.3s ease, max-height 0.3s ease;
             }
-            .route-list-container { max-height: 100px; overflow-y: auto; }
+
+            /* Laajennettu tila maksimissaan puoliväliin näyttöä (50vh) */
+            #info-widget.expanded { height: 50vh !important; max-height: 50vh !important; }
+
+            /* Otsikko toimii kahvana ja on täydellisesti pystysuunnassa keskellä supistettuna */
+            #info-widget h3 {
+                margin: 0 !important; display: block !important;
+                height: 65px !important; line-height: 75px !important; /* Huomioi vetoviivan viemän tilan yläpuolella */
+                font-size: 1.2rem !important; font-weight: 700 !important; color: var(--primary-color) !important;
+                text-align: center !important; border-bottom: 2px solid var(--bg-color) !important;
+                position: relative !important; flex-shrink: 0 !important; box-sizing: border-box !important;
+                cursor: pointer;
+            }
+
+            /* Hienosäädetään otsikon linjausta kun laatikko on auki */
+            #info-widget.expanded h3 { height: 50px !important; line-height: 55px !important; }
+
+            /* Vaadittu harmaa vaakasuuntainen vetoviiva */
+            #info-widget h3::before {
+                content: '' !important; position: absolute !important; top: 8px !important; left: 50% !important;
+                transform: translateX(-50%) !important; width: 50px !important; height: 5px !important;
+                background-color: #cbd5e1 !important; border-radius: 3px !important; display: block !important;
+            }
+
+            /* Sisältökontti, joka muuttuu rullattavaksi laajennettuna */
+            .route-list-container { 
+                display: none !important; flex-grow: 1 !important; overflow-y: auto !important; 
+                margin-top: 5px !important; -webkit-overflow-scrolling: touch !important; box-sizing: border-box !important;
+            }
+            
+            /* Näytetään lista VAIN kun widget on laajennettu */
+            #info-widget.expanded .route-list-container { display: block !important; }
+            .route-list { display: block !important; height: auto !important; padding: 0 !important; margin: 0 !important; }
+            .route-item { padding: 14px 0 !important; display: flex !important; align-items: center !important; justify-content: space-between !important; }
+            .route-name { max-width: 130px !important; font-size: 1rem !important; }
+            .route-distance { font-size: 1.05rem !important; color: var(--accent-color) !important; margin-right: 15px !important; }
+            .delete-btn { padding: 5px 10px !important; font-size: 1.6rem !important; }
         }
     </style>
 </head>
@@ -185,7 +236,7 @@
             Vältä moottoriteitä
         </label>
 
-        <p class="instruction">Klikkaa karttaa vapaasti suunnitellaksesi. Voit raahata ja poistaa luotuja reittipisteitä suoraan kartalta.</p>
+        <p class="instruction">Klikkaa karttaa asettaaksesi reittipisteitä. Voit vetää lippuja tai poistaa niitä napauttamalla.</p>
 
         <div class="control-group">
             <div class="file-upload">
@@ -199,7 +250,7 @@
     </div>
 
     <div id="info-widget">
-        <h3>Aktiiviset reitit</h3>
+        <h3>Reittisuunnittelu</h3>
         <div class="route-list-container">
             <ul id="gpx-route-list" class="route-list">
                 <li class="route-item" style="color: #7f8c8d; font-style: italic;">Ei aktiivisia reittejä</li>
@@ -224,6 +275,7 @@
     <script>
         const WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/';
 
+        // Sovelluksen globaali tila
         const state = {
             isReadOnly: false,
             routes: [],     
@@ -235,6 +287,7 @@
             lastActionWasImport: false 
         };
 
+        // Alustetaan Leaflet-kartta optimoiduilla mobiiliasetuksilla
         const map = L.map('map', { tap: false, zoomControl: false }).setView([60.1699, 24.9384], 11);
         L.control.zoom({ position: 'topright' }).addTo(map);
 
@@ -242,25 +295,46 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // UI Elementtien sidonnat ja valikon avausmekanismi
         const menuToggle = document.getElementById('menu-toggle');
         const sidebar = document.getElementById('sidebar');
+        const infoWidget = document.getElementById('info-widget');
         
+        // --- POMMINVARMA LIITÄNTÄ- JA PROPAGAATIONHALLINTA ---
+        // Estetään kartan klikkaukset ja raahaukset kun interagoidaan työpöytä-/mobiiliwidgetin kanssa
+        L.DomEvent.disableClickPropagation(infoWidget);
+        L.DomEvent.disableScrollPropagation(infoWidget);
+        L.DomEvent.disableClickPropagation(sidebar);
+
         menuToggle.addEventListener('click', (e) => {
             e.stopPropagation();
             sidebar.classList.toggle('open');
         });
         
-        // Suljetaan valikko jos klikataan karttaa
-        map.on('click', () => { sidebar.classList.remove('open'); });
+        map.on('click', () => { 
+            sidebar.classList.remove('open'); 
+            if (window.innerWidth <= 768) {
+                infoWidget.classList.remove('expanded');
+            }
+        });
 
+        // Klikkausotsikko mobiilissa kytkee widgetin koon (Toggle expanded)
+        const widgetHeader = infoWidget.querySelector('h3');
+        widgetHeader.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768) {
+                infoWidget.classList.toggle('expanded');
+            }
+        });
+
+        // Alustetaan taustajärjestelmät ja laitepaikannus
         checkWorkerBackendStatus();
         initiateUserGeolocation();
 
+        // Karttanäkymän siirto- ja zoomauskuuntelijat dynaamista karsintaa varten
         map.on('moveend', renderDynamicWaypoints);
         map.on('zoomend', renderDynamicWaypoints);
         map.on('click', async (e) => { await handleMapClick(e.latlng); });
 
+        // Tapahtumankuuntelijat käyttöliittymän napeille
         document.getElementById('clear-btn').addEventListener('click', clearAllRoutes);
         document.getElementById('gpx-file-input').addEventListener('change', handleMultiGPXUpload);
         document.getElementById('merge-routes-btn').addEventListener('click', mergeAllActiveRoutes);
@@ -268,6 +342,7 @@
         document.getElementById('modal-cancel-btn').addEventListener('click', closeConfirmationModal);
         document.getElementById('modal-confirm-btn').addEventListener('click', executeWaypointDeletion);
 
+        // Tarkistetaan onko proxy toiminnassa vai ollaanko katselutilassa
         async function checkWorkerBackendStatus() {
             const statusEl = document.getElementById('api-status');
             try {
@@ -275,13 +350,14 @@
                 if (response.ok) {
                     statusEl.style.display = 'none';
                     state.isReadOnly = false;
-                } else { throw new Error("API_ERROR"); }
+                } else { throw new Error("READ_ONLY"); }
             } catch (err) {
-                statusEl.style.display = 'block';
+                statusEl.style.display = 'block'; // Näytetään palkki: "Vain katselutila käytössä"
                 state.isReadOnly = true;
             }
         }
 
+        // Käyttäjän GPS/WiFi-paikannus ja keskitys sinisellä pallolla
         function initiateUserGeolocation() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
@@ -299,12 +375,13 @@
                         if (state.userLocationMarker) map.removeLayer(state.userLocationMarker);
                         state.userLocationMarker = L.marker([lat, lng], { icon: blueBallIcon }).addTo(map);
                     },
-                    (error) => { console.log("Sijaintipyyntö evätty tai aikakatkaistu."); },
-                    { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+                    (error) => { console.log("Sijaintitietoja ei saatu ladattua."); },
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
                 );
             }
         }
 
+        // Douglas-Peucker -yksinkertaistus algoritmi reittijälkien optimointiin mobiilissa
         function simplifyCoordinates(points, tolerance) {
             if (points.length <= 2) return points;
             let maxSqDist = 0; let index = 0; const end = points.length - 1;
@@ -314,8 +391,8 @@
             }
             if (maxSqDist > tolerance * tolerance) {
                 const results1 = simplifyCoordinates(points.slice(0, index + 1), tolerance);
-                const Math2 = simplifyCoordinates(points.slice(index), tolerance);
-                return results1.slice(0, results1.length - 1).concat(Math2);
+                const results2 = simplifyCoordinates(points.slice(index), tolerance);
+                return results1.slice(0, results1.length - 1).concat(results2);
             }
             return [points[0], points[end]];
         }
@@ -329,8 +406,9 @@
             dx = p[1] - x; dy = p[0] - y; return dx * dx + dy * dy;
         }
 
+        // Haetaan reittiosuus OpenRouteServicen proxy-workerilta
         async function fetchRouteSegment(start, end) {
-            if (state.isReadOnly) return [start, end];
+            if (state.isReadOnly) return [start, end]; // Suora viiva linnuntietä katselutilassa
             const avoidHighways = document.getElementById('avoid-highways-checkbox').checked;
             const body = { coordinates: [[start[1], start[0]], [end[1], end[0]]] };
             if (avoidHighways) body.options = { avoid_features: ["highway"] };
@@ -348,12 +426,14 @@
                         return simplifyCoordinates(segment, 0.0001);
                     }
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) { console.error("Reititysvirhe:", err); }
             return [start, end];
         }
 
+        // Lasketaan koko reittigeometria uudelleen dynaamisesti
         async function recalculateWholeRouteGeometry(route, deletedIndex = null, wasEdge = false) {
             if (wasEdge && deletedIndex !== null && route.coords.length > 0) {
+                // ÄLYKÄS POISTOVAATIMUS: Jos alku- tai loppupiste poistetaan, katkaistaan vain kyseinen osuus seuraavaan pisteeseen asti
                 if (deletedIndex === 0) {
                     const nextWp = route.waypoints[0];
                     let closestIdx = findClosestCoordinateIndex(route.coords, nextWp);
@@ -389,7 +469,7 @@
             return targetIndex;
         }
 
-        // Näytä maksimissaan 20 reittipistettä siten, että yksi karttapiste on ennen ja jälkeen karttapohjan ulkopuolella
+        // VAADITTU REITTIPISTEIDEN DYNAAMINEN KARSINTALOGIIKKA (Max 20 kartalla kerrallaan näkymässä)
         function renderDynamicWaypoints() {
             state.clickMarkers.forEach(m => map.removeLayer(m));
             state.clickMarkers = [];
@@ -408,7 +488,7 @@
 
                 let targetIndices = new Set();
                 if (insideIndices.length > 0) {
-                    const maxInsidePoints = 20; 
+                    const maxInsidePoints = 18; // Jätetään 2 paikkaa reunan yli oleville ankkuripisteille
                     const step = Math.max(1, Math.floor(insideIndices.length / maxInsidePoints));
                     
                     for (let i = 0; i < insideIndices.length; i += step) {
@@ -416,11 +496,11 @@
                     }
                     targetIndices.add(insideIndices[insideIndices.length - 1]);
 
-                    // Yksi piste ennen näkymäaluetta
+                    // YKSI PISTE ENNEN KARTTAPOHJAN ULKOPUOLELLA
                     const firstInsideIndex = insideIndices[0];
                     if (firstInsideIndex > 0) targetIndices.add(firstInsideIndex - 1);
 
-                    // Yksi piste näkymäalueen jälkeen
+                    // YKSI PISTE JÄLKEEN KARTTAPOHJAN ULKOPUOLELLA
                     const lastInsideIndex = insideIndices[insideIndices.length - 1];
                     if (lastInsideIndex < route.waypoints.length - 1) targetIndices.add(lastInsideIndex + 1);
                 } else {
@@ -467,6 +547,7 @@
             document.getElementById('confirm-modal').classList.remove('active');
         }
 
+        // Pisteen poistaminen kartalta varmistuksen jälkeen ja välin uudelleenreititys
         async function executeWaypointDeletion() {
             if (!state.pendingDeletion) return;
             const { routeId, waypointIndex } = state.pendingDeletion;
@@ -487,12 +568,13 @@
             renderDynamicWaypoints();
         }
 
+        // Kartan vapaa klikkaustoiminto reitin luomiseksi
         async function handleMapClick(latlng) {
             if (state.isReadOnly) return;
             const newPoint = [latlng.lat, latlng.lng];
             let activeRoute = state.routes[state.routes.length - 1];
 
-            // Jos tuodun uran jälkeen asetetaan uusi piste, pidetään sitä uuden reitin aloituspisteenä
+            // VAATIMUS: Jos tuodun jäljen jälkeen kartalle laitetaan uusi piste, pidetään sitä uuden reitin aloituspisteenä
             if (!activeRoute || state.lastActionWasImport) {
                 const color = state.colorPalette[state.colorIndex % state.colorPalette.length];
                 state.colorIndex++;
@@ -518,6 +600,7 @@
             renderDynamicWaypoints();
         }
 
+        // Useamman GPX-tiedoston yhtäaikainen editointikelpoinen tuonti ja dynaaminen reittipisteytys
         function handleMultiGPXUpload(e) {
             const files = e.target.files;
             if (!files || files.length === 0) return;
@@ -545,7 +628,8 @@
                         const routeId = 'route_' + Date.now() + Math.random().toString(36).substr(2, 5);
                         const layer = L.polyline(rawCoords, { color: color, weight: 6, opacity: 0.85 }).addTo(map);
 
-                        const step = Math.max(1, Math.floor(rawCoords.length / 30));
+                        // Rakennetaan editoitavat pääreittipisteet GPX-datasta tasavälein
+                        const step = Math.max(1, Math.floor(rawCoords.length / 25));
                         const calculatedWaypoints = [];
                         for(let i=0; i<rawCoords.length; i+=step) calculatedWaypoints.push(rawCoords[i]);
                         if(calculatedWaypoints[calculatedWaypoints.length-1] !== rawCoords[rawCoords.length-1]) {
@@ -558,14 +642,15 @@
                         updateSidebarRouteList();
                         zoomToFitAllRoutes();
                         renderDynamicWaypoints();
-                    } catch (err) { console.error(err); }
+                    } catch (err) { console.error("Virhe GPX-parsaamisessa:", err); }
                 };
                 reader.readAsText(file);
             });
             e.target.value = '';
-            sidebar.classList.remove('open'); // Suljetaan valikko latauksen jälkeen parantamaan UX:ää
+            sidebar.classList.remove('open'); 
         }
 
+        // VAATIMUS: Mahdollisuus yhdistää kaksi tai useampi jälki yhdeksi yhtenäiseksi jäljeksi sillalla
         async function mergeAllActiveRoutes() {
             if (state.routes.length < 2) return;
             const finalMergedCoords = [];
@@ -600,6 +685,7 @@
             renderDynamicWaypoints();
         }
 
+        // TALLENNUS VAATIMUS: Generoi GPX-standardin ja lataa tiedoston suoraan Downloads-hakemistoon
         function exportRoutesToGpxFile() {
             if (state.routes.length === 0) return;
             let gpxText = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="RoutePlanner" xmlns="http://www.topografix.com/GPX/1/1">\n`;
@@ -622,6 +708,7 @@
             URL.revokeObjectURL(url);
         }
 
+        // Geometrisen reittipituuden tarkka haversine-pohjainen laskenta kilometreissä
         function calculateGpxGeometricDistance(coords) {
             let totalDist = 0;
             for (let i = 0; i < coords.length - 1; i++) {
@@ -636,6 +723,7 @@
             map.fitBounds(group.getBounds().pad(0.05));
         }
 
+        // Päivittää aktiivisten urien tiedot ja kokonaispituudet widget-ikkunaan
         function updateSidebarRouteList() {
             const listEl = document.getElementById('gpx-route-list');
             listEl.innerHTML = '';
@@ -646,7 +734,7 @@
             exportBtn.style.display = state.routes.length >= 1 ? 'block' : 'none';
 
             if (state.routes.length === 0) {
-                listEl.innerHTML = '<li class="route-item" style="color: #7f8c8d; font-style: italic;">Ei aktiivisia reittejä</li>';
+                listEl.innerHTML = '<li class="route-item" style="color: #7f8c8d; font-style: italic; display: flex !important;">Ei aktiivisia reittejä</li>';
                 return;
             }
 
@@ -658,8 +746,8 @@
                     <div class="route-meta">
                         <span class="color-indicator" style="background-color: ${route.color}"></span>
                         <span class="route-name" title="${route.name}">${route.name}</span>
-                        <span class="route-distance">${currentDistance.toFixed(1)} km</span>
                     </div>
+                    <span class="route-distance">${currentDistance.toFixed(1)} km</span>
                 `;
                 const delBtn = document.createElement('button');
                 delBtn.className = 'delete-btn'; delBtn.innerHTML = '&times;';
