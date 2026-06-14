@@ -4,7 +4,7 @@ Lisää mahdollisuus valita moottoriteiden välttämiseen.
 
 OpenRouteServicen ORS_API_KEY on tallennettu salattuna CloudFlaren workeriin ja asetetaan osoittamaan WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/'. Älä näytä infoa "yhteys suojattu Cloudflare Workerilla" vaan vain siinä tapauksessa, että sivu on vain katselu-tilassa. Ilmoita tästä palkissa "Vain katselutila käytössä"
 
-Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan reittipisteeseen.
+Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan reittipisteeseen. Jos tuodun jäljen jälkeen kartalle laitetaan uusi reittipiste, pidä tätä uuden reitin aloituspisteenä.
 
 Näytä maksimissaan 20 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuolella
 
