@@ -2,32 +2,56 @@ Toimi senior-tason Full Stack- ja Web-kehittäjänä. Rakenna moderni, yhden tie
 
 Toteuta sovellus seuraavien tarkkojen teknisten ja toiminnallisten vaatimusten mukaisesti:
 
-1. ARKKITEHTUURI JA API-YHTEYS
+Toimi kokeneena Full-stack-arkkitehtina. Alla on nykyinen yhden tiedoston (HTML + CSS + JS) reittisuunnittelusovellukseni koodi. 
+
+Haluan refaktoroida tämän projektin siistiksi, tuotantovalmiiksi ja modulaariseksi Vanilla JS -sovellukseksi, joka käyttää ES-moduuleita (import/export). 
+
+Suorita refaktorointi seuraavien ohjeiden mukaisesti:
+
+1. Jaa koodi seuraavaan tiedostorakenne-malliin:
+   - index.html (Vain puhdas HTML-rakenne ja Leaflet/skripti-linkitykset)
+   - css/style.css (Kaikki tyylit, muuttujat ja mediakyselyt)
+   - js/app.js (Sovelluksen pääalustus, globaali tila/state ja päätason Event Listenerit)
+   - js/api.js (API-kutsut, kuten Cloudflare Worker / OpenRouteService)
+   - js/map.js (Leaflet-kartan hallinta, markerit ja piirtologiikka)
+   - js/utils.js (Matemaattiset apufunktiot, kuten Douglas-Peucker -optimointi ja etäisyyslaskennat)
+   - js/gpx.js (GPX-import ja -export logiikka)
+
+2. TEKNINEN TOTEUTUS:
+   - Käytä JavaScriptin moderneja ES-moduuleita (`import` ja `export`).
+   - index.html-tiedostossa JavaScript pitää ladata muodossa: <script type="module" src="js/app.js"></script>.
+   - Varmista, että globaalit muuttujat eivät pääse saastuttamaan scopia; välitä tarvittava data (kuten `map` tai reittipisteet) funktioiden argumentteina tai hallitse tilaa keskitetysti app.js-tiedostossa.
+
+3. TULOSTUSMUOTO:
+   - Tulosta jokaisen tiedoston koodi KOKONAISUUDESSAAN. Älä käytä placeholder-kommentteja kuten "// ... loppu koodi tähän ..." tai "// sama kuin ennen". Jokaisen tiedoston on oltava valmis kopioitavaksi suoraan käyttöön.
+   - Esitä tiedostot selkeissä koodibokeissa, joiden yläpuolella lukee tiedostopolku (esim. "js/utils.js").
+
+4. ARKKITEHTUURI JA API-YHTEYS
 - Sovellus tekee reitityspyynnöt taustajärjestelmään, joka sijaitsee osoitteessa: WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/' (tähän on tallennettu ORS_API_KEY salattuna Cloudflare Workeriin).
 - Tee käynnistyksessä GET-pyyntö WORKER_URL-osoitteeseen backendin tilan tarkistamiseksi. Jos pyyntö epäonnistuu, aseta sovellus katselutilaan (Read-Only) ja näytä infopalkissa teksti "Vain katselutila käytössä". Muussa tapauksessa piilota tämä ilmoitus.
 
-2. REITITYSLOGIIKKA JA REITTIPUUTTEET
+4. REITITYSLOGIIKKA JA REITTIPUUTTEET
 - Lisää käyttöliittymään valintaruutu (checkbox) moottoriteiden välttämiselle (ORS: avoid_features: ["highway"]).
 - Karttaa klikkaamalla lisätään uusia reittipisteitä (waypoint). Reititä pisteiden välit lennossa ORS-rajapinnan kautta. Optimoi reitin geometria Douglas-Peucker-yksinkertaistuksella.
 - Näytä aktiivisten urien kokonaispituus selkeästi kilometreinä (laskettu haetusta geometriasta).
 
-3. GPX-TUONTI JA EDITOINTI (ERITYISSÄÄNNÖT)
+5. GPX-TUONTI JA EDITOINTI (ERITYISSÄÄNNÖT)
 - Salli useiden GPX-tiedostojen tuonti samanaikaisesti. Muunna tuodut jäljet muokattaviksi reittipisteiksi (karsi raaka jälki sopivaan määrään editointipisteitä).
 - ERITYISSÄÄNTÖ 1: Jos reitin alku- tai loppupiste poistetaan, älä reititä koko uraa uusiksi, vaan poista vain jälki kyseisestä pisteestä seuraavaan/edelliseen reittipisteeseen.
 - ERITYISSÄÄNTÖ 2: Jos tuodun GPX-jäljen jälkeen käyttäjä klikkaa karttaa lisätäkseen uuden reittipisteen, käsittele tätä klikkausta kokonaan uuden reitin aloituspisteenä (älä jatka vanhaa tuotua uraa).
 - Lisää toiminto kahden tai useamman kartalla olevan itsenäisen uran yhdistämiseksi yhdeksi yhtenäiseksi reitiksi, reitittäen urien väliin jäävät aukot automaattisesti.
 
-4. DYNAAMINEN REITTIPISTEIDEN KARSINTA JA ZOOM-AUTOMATIIKKA
+6. DYNAAMINEN REITTIPISTEIDEN KARSINTA JA ZOOM-AUTOMATIIKKA
 - Älä tuki karttaa näyttämällä kaikkia reittipisteitä kerralla. Suodata näytettävät markerit kartan nykyisen näkymän (Bounds) ja ZOOM-TASON mukaan dynaamisesti (tapahtumat: moveend, zoomend).
 - Kun karttataso on kaukana, näytä maks. 6-10 pistettä. Kun käyttäjä zoomaa lähemmäs, kasvata markerien määrää automaattisesti (esim. zoom >= 16 näyttää jopa 40 pistettä), jotta tarkka editointi on mahdollista.
 - Säännönmukaisesti: näytä aina vähintään yksi piste nykyisen karttanäkymän ulkopuolelta ennen reitin alkua ja reitin jälkeen.
 - Tee reittipisteistä raahattavia (draggable). Jos pistettä siirretään, laske kyseinen reittiosuus uudelleen.
 - Jos reittipistettä klikataan, kysy varmistus erillisessä modaali-ikkunassa: "Poistetaanko piste?". Jos vastaus on kyllä, poista piste ja reititä väli uudelleen.
 
-5. GEOLOKAATIO
+7. GEOLOKAATIO
 - Jos laitteen GPS- tai WiFi-sijainti on saatavilla, keskitä kartta automaattisesti käyttäjän kohdalle ja piirrä siihen sykkivä sininen sijaintipallo.
 
-6. MOBIILIYSTÄVÄLLINEN "BOTTOM SHEET" -WIDGET & LEAFLET-INTEGRAATIO
+8. MOBIILIYSTÄVÄLLINEN "BOTTOM SHEET" -WIDGET & LEAFLET-INTEGRAATIO
 - Luo näytön alareunaan kiinnitetty "Bottom Sheet" -widget käyttäen pääkonttia `#info-widget`.
 - Sen ylätunnisteena tulee olla `<h3>`-otsikko, joka toimii klikattavana kahvana. Otsikon sisään tulee luoda CSS `::before`-pseudoelementillä harmaa, vaakasuora "vetoviiva" (pill-indikaattori).
 - Työpöytänäkymässä (>768px) widget on vapaasti sijoitettu laatikko vasemmassa alakulmassa.
@@ -36,10 +60,10 @@ Toteuta sovellus seuraavien tarkkojen teknisten ja toiminnallisten vaatimusten m
 - Kun widgetille annetaan luokka `.expanded`, sen korkeudeksi muuttuu `50vh !important` ja sisällöstä tulee rullattava (`overflow-y: auto`). Otsikon klikkaus mobiilissa kytkee (toggle) tämän luokan.
 - Varmista, että widgetin `z-index` on vähintään 9999. Estä kaikki kartan pohjatapahtumat (raahaus, tuplaklikkaus) widgetin päältä Leafletin `L.DomEvent.disableClickPropagation` ja `disableScrollPropagation` -metodeilla.
 
-7. TIEDOSTOJEN TALLENNUS
+9. TIEDOSTOJEN TALLENNUS
 - Lisää painike GPX-jäljen lataamiseksi paikallisesti laitteen Downloads-hakemistoon.
 
-8. KÄYTTÖLIITTYMÄN ASENTELU JA ULKOASU
+10. KÄYTTÖLIITTYMÄN ASENTELU JA ULKOASU
 - Otsikoi sivu ja sidebar tekstillä "Reittisuunnittelu".
 - Vasempaan yläkulmaan tulee hampurilaispainike (kolme vaakaviivaa). Sen takaa aukeaa tyylikäs sivupalkki (Sidebar), joka sisältää: asetukset (moottoritie-checkbox), GPX-tuontipainikkeen, "Yhdistä urat" -painikkeen (näkyvissä vain jos uria on >= 2), "Lataa GPX" -painike (näkyvissä vain jos reittejä on) sekä "Tyhjennä kaikki" -painikkeen.
 - Kirjoita koodi yhteen tiedostoon siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille.
