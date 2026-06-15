@@ -1,47 +1,45 @@
-Ole senioritasoinen web-kehittäjä ja rakenna html-pohjainen sovellus, jossa on karttapohja ja openrouteservicen reitinsuunnittelua hyödyntävä reititys.
+Toimi senior-tason Full Stack- ja Web-kehittäjänä. Rakenna moderni, yhden tiedoston (Single-file) HTML5/CSS3/Vanilla JS -pohjainen reitityssovellus, joka hyödyntää Leaflet.js-karttakirjastoa ja OpenRouteService (ORS) -rajapintaa. 
 
-Lisää mahdollisuus valita moottoriteiden välttämiseen.
+Toteuta sovellus seuraavien tarkkojen teknisten ja toiminnallisten vaatimusten mukaisesti:
 
-OpenRouteServicen ORS_API_KEY on tallennettu salattuna CloudFlaren workeriin ja asetetaan osoittamaan WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/'. Älä näytä infoa "yhteys suojattu Cloudflare Workerilla" vaan vain siinä tapauksessa, että sivu on vain katselu-tilassa. Ilmoita tästä palkissa "Vain katselutila käytössä"
+1. ARKKITEHTUURI JA API-YHTEYS
+- Sovellus tekee reitityspyynnöt taustajärjestelmään, joka sijaitsee osoitteessa: WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/' (tähän on tallennettu ORS_API_KEY salattuna Cloudflare Workeriin).
+- Tee käynnistyksessä GET-pyyntö WORKER_URL-osoitteeseen backendin tilan tarkistamiseksi. Jos pyyntö epäonnistuu, aseta sovellus katselutilaan (Read-Only) ja näytä infopalkissa teksti "Vain katselutila käytössä". Muussa tapauksessa piilota tämä ilmoitus.
 
-Lisää mahdollisuus tuoda GXP-tiedostoja, joita voi editoita. Jos alku- tai loppupiste poistetaan, poista vain jälki seuraavaan reittipisteeseen. Jos tuodun jäljen jälkeen kartalle laitetaan uusi reittipiste, pidä tätä uuden reitin aloituspisteenä.
+2. REITITYSLOGIIKKA JA REITTIPUUTTEET
+- Lisää käyttöliittymään valintaruutu (checkbox) moottoriteiden välttämiselle (ORS: avoid_features: ["highway"]).
+- Karttaa klikkaamalla lisätään uusia reittipisteitä (waypoint). Reititä pisteiden välit lennossa ORS-rajapinnan kautta. Optimoi reitin geometria Douglas-Peucker-yksinkertaistuksella.
+- Näytä aktiivisten urien kokonaispituus selkeästi kilometreinä (laskettu haetusta geometriasta).
 
-Näytä maksimissaan 20 reittipistettä karttapohjalla siten, että yksi karttapiste on ennen ja jälkeen reitin karttapohjan ulkopuolella
+3. GPX-TUONTI JA EDITOINTI (ERITYISSÄÄNNÖT)
+- Salli useiden GPX-tiedostojen tuonti samanaikaisesti. Muunna tuodut jäljet muokattaviksi reittipisteiksi (karsi raaka jälki sopivaan määrään editointipisteitä).
+- ERITYISSÄÄNTÖ 1: Jos reitin alku- tai loppupiste poistetaan, älä reititä koko uraa uusiksi, vaan poista vain jälki kyseisestä pisteestä seuraavaan/edelliseen reittipisteeseen.
+- ERITYISSÄÄNTÖ 2: Jos tuodun GPX-jäljen jälkeen käyttäjä klikkaa karttaa lisätäkseen uuden reittipisteen, käsittele tätä klikkausta kokonaan uuden reitin aloituspisteenä (älä jatka vanhaa tuotua uraa).
+- Lisää toiminto kahden tai useamman kartalla olevan itsenäisen uran yhdistämiseksi yhdeksi yhtenäiseksi reitiksi, reitittäen urien väliin jäävät aukot automaattisesti.
 
-Lisää mahdollisuus yhdistää yksi tai useampi jälki yhdeksi jäljeksi.
+4. DYNAAMINEN REITTIPISTEIDEN KARSINTA JA ZOOM-AUTOMATIIKKA
+- Älä tuki karttaa näyttämällä kaikkia reittipisteitä kerralla. Suodata näytettävät markerit kartan nykyisen näkymän (Bounds) ja ZOOM-TASON mukaan dynaamisesti (tapahtumat: moveend, zoomend).
+- Kun karttataso on kaukana, näytä maks. 6-10 pistettä. Kun käyttäjä zoomaa lähemmäs, kasvata markerien määrää automaattisesti (esim. zoom >= 16 näyttää jopa 40 pistettä), jotta tarkka editointi on mahdollista.
+- Säännönmukaisesti: näytä aina vähintään yksi piste nykyisen karttanäkymän ulkopuolelta ennen reitin alkua ja reitin jälkeen.
+- Tee reittipisteistä raahattavia (draggable). Jos pistettä siirretään, laske kyseinen reittiosuus uudelleen.
+- Jos reittipistettä klikataan, kysy varmistus erillisessä modaali-ikkunassa: "Poistetaanko piste?". Jos vastaus on kyllä, poista piste ja reititä väli uudelleen.
 
-Lisää mahdollisuus poistaa reittipiste kartalta ja reititä tämä osuus uudestaan. Kysy varmistus pisteen poistamiseksi "Poistetaanko piste?"
+5. GEOLOKAATIO
+- Jos laitteen GPS- tai WiFi-sijainti on saatavilla, keskitä kartta automaattisesti käyttäjän kohdalle ja piirrä siihen sykkivä sininen sijaintipallo.
 
-Aseta otsikoksi "Reittisuunnittelu". Käytä samaa otsikkoa myös sidebarille.
+6. MOBIILIYSTÄVÄLLINEN "BOTTOM SHEET" -WIDGET & LEAFLET-INTEGRAATIO
+- Luo näytön alareunaan kiinnitetty "Bottom Sheet" -widget käyttäen pääkonttia `#info-widget`.
+- Sen ylätunnisteena tulee olla `<h3>`-otsikko, joka toimii klikattavana kahvana. Otsikon sisään tulee luoda CSS `::before`-pseudoelementillä harmaa, vaakasuora "vetoviiva" (pill-indikaattori).
+- Työpöytänäkymässä (>768px) widget on vapaasti sijoitettu laatikko vasemmassa alakulmassa.
+- Mobiilinäkymässä (max-width: 768px) pakota widget tilaan `position: fixed !important; left: 0; bottom: 0; right: 0; width: 100%;`.
+- Supistetussa tilassa widgetin korkeuden on oltava tasan 65px (`height: 65px !important`), ja sen sisällön (`.route-list-container`) on oltava piilotettu (`display: none`), jotta otsikko keskittyy pystysuunnassa täydellisesti 65px alueelle.
+- Kun widgetille annetaan luokka `.expanded`, sen korkeudeksi muuttuu `50vh !important` ja sisällöstä tulee rullattava (`overflow-y: auto`). Otsikon klikkaus mobiilissa kytkee (toggle) tämän luokan.
+- Varmista, että widgetin `z-index` on vähintään 9999. Estä kaikki kartan pohjatapahtumat (raahaus, tuplaklikkaus) widgetin päältä Leafletin `L.DomEvent.disableClickPropagation` ja `disableScrollPropagation` -metodeilla.
 
-Näytä reittitietojen kokonaispituus kilometreissä
+7. TIEDOSTOJEN TALLENNUS
+- Lisää painike GPX-jäljen lataamiseksi paikallisesti laitteen Downloads-hakemistoon.
 
-Lisää mahdollisuus tallentaa GPX-jälki paikallisesti Downloads hakemistoon.
-
-Jos lokaatio on tiedossa joko GPS:n tai WiFin kautta, keskitä kartta niin, että lokaation on kartan keskipisteenä. Piirää lokaatio sinisenä pallona.
-
-Rakenna verkkosivulle mobiiliystävällinen "Bottom Sheet" -infowidget (reittilista/tietolaatikko), joka toimii saumattomasti Leaflet.js-kartan päällä. Toteuta tämä puhtaalla HTML:llä, CSS:llä ja JavaScriptillä (Vanilla JS).
-
-Noudata seuraavia teknisiä vaatimuksia:
-
-1. RAKENNE (HTML):
-   - Luo widgetille pääkontti `#info-widget`.
-   - Kontin sisällä tulee olla ylätunnisteena `<h3>`-otsikko, joka toimii klikattavana/vedettävänä kahvana. Otsikon sisään (`::before`-pseudoelementillä) tulee luoda selkeä, harmaa vaakasuuntainen "vetoviiva" (pill-indikaattori), joka viestii käyttäjälle elementin olevan avattava.
-   - Otsikon alapuolella tulee olla kontti `.route-list-container`, jonka sisällä on varsinainen sisältö/lista elementteineen.
-
-2. TYYLIT JA RESPONSIVISUUS (CSS):
-   - Työpöytäversiossa (yli 768px) widget voi olla osa sivupalkkia tai vapaasti sijoitettu laatikko.
-   - Mobiiliversiossa (max-width: 768px) aseta `#info-widget` tilaan `position: fixed !important`, jotta Leaflet-kartta ei peitä sitä. Kiinnitä se pohjaan: `left: 0, bottom: 0, right: 0, width: 100%`.
-   - Aseta korkeudeksi supistetussa tilassa tasan 65px (`height: 65px !important`), ja käytä `box-sizing: border-box`.
-   - Kun widgetissä on luokka `.expanded`, sen korkeuden tulee muuttua muotoon `height: 50vh !important` (puolet näytöstä) ja sisällön `.route-list-container` tulee muuttua rullattavaksi (`overflow-y: auto`).
-   - Supistetussa tilassa piilota varsinainen sisältölista (`display: none`), jotta se ei sekoita laatikon korkeuslaskentaa, ja näytä se vain `.expanded`-tilassa.
-   - Varmista, että `z-index` on vähintään 9999, jotta se pysyy Leafletin dynaamisten elementtien päällä.
-
-3. TOIMINNALLISUUS (JavaScript):
-   - Tee `<h3>`-otsikosta klikattava. Kun sitä klikataan mobiilissa, kytke luokka `.expanded` päälle tai pois `#info-widget`-elementistä (toggle).
-   - Estä kartan pohjatapahtumat (kuten tuplaklikkaus tai raahaus), kun käyttäjä koskettaa tai rullaa widgetiä, käyttämällä Leafletin metodia: `L.DomEvent.disableClickPropagation(widgetElement)`.
-
-Kirjoita selkeää, kommentoitua koodia ja varmista, että mobiiliversion otsikko on pystysuunnassa täydellisesti keskellä supistetussa tilassa.
-
-Tee käyttöliittymään vasempaan yläkulmaan nappi, jossa kolme vaakaviivaa. Napin takana on toiminnallisuudet kuten checkbox välttää moottoriteitä, tuoda GPX-jälkiä karttapohjalle, mahdollisuus yhdistää kaksi tai useampi jälki yhdeksi jäljeksi sekä mahdollisuus tyhjentää kaikki. Näytä aktiiviset reitit ja pituudet omana ikkunana vasemmassa alakulmassa.
-
+8. KÄYTTÖLIITTYMÄN ASENTELU JA ULKOASU
+- Otsikoi sivu ja sidebar tekstillä "Reittisuunnittelu".
+- Vasempaan yläkulmaan tulee hampurilaispainike (kolme vaakaviivaa). Sen takaa aukeaa tyylikäs sivupalkki (Sidebar), joka sisältää: asetukset (moottoritie-checkbox), GPX-tuontipainikkeen, "Yhdistä urat" -painikkeen (näkyvissä vain jos uria on >= 2), "Lataa GPX" -painike (näkyvissä vain jos reittejä on) sekä "Tyhjennä kaikki" -painikkeen.
+- Kirjoita koodi yhteen tiedostoon siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille.
