@@ -11,40 +11,38 @@
 </head>
 <body>
 
-    <button id="menu-toggle" aria-label="Avaa valikko">
+    <button id="menu-toggle">
         <span></span>
         <span></span>
         <span></span>
     </button>
 
     <div id="sidebar">
-        <h2>Reittisuunnittelu</h2>
-        <div id="api-status">Vain katselutila käytössä</div>
+        <h2 id="sidebar-title"></h2>
+        <div id="api-status"></div>
 
         <label class="checkbox-container">
             <input type="checkbox" id="avoid-highways-checkbox">
-            Vältä moottoriteitä
+            <span id="label-avoid-highways"></span>
         </label>
 
-        <p class="instruction">Klikkaa karttapohjaa asettaaksesi reittipisteitä. Voit siirtää pisteitä raahaamalla niitä lipuista.</p>
+        <p id="sidebar-instruction" class="instruction"></p>
 
-        <div style="display: flex; flex-direction: column; gap: 5px;">
+        <div class="sidebar-actions">
             <div class="file-upload">
-                <span class="btn btn-secondary">Tuo GPX-tiedostoja</span>
+                <span id="btn-import-label" class="btn btn-secondary"></span>
                 <input type="file" id="gpx-file-input" accept=".gpx" multiple>
             </div>
-            <button id="merge-routes-btn" class="btn btn-success" style="display: none;">Yhdistä urat yhdeksi</button>
-            <button id="export-gpx-btn" class="btn btn-accent" style="display: none;">Lataa valmis GPX</button>
-            <button id="clear-btn" class="btn btn-danger">Tyhjennä kaikki</button>
+            <button id="merge-routes-btn" class="btn btn-success" style="display: none;"></button>
+            <button id="export-gpx-btn" class="btn btn-accent" style="display: none;"></button>
+            <button id="clear-btn" class="btn btn-danger"></button>
         </div>
     </div>
 
     <div id="info-widget">
-        <h3>Reittisuunnittelu</h3>
+        <h3 id="widget-title"></h3>
         <div class="route-list-container">
-            <ul id="gpx-route-list" class="route-list">
-                <li class="route-item" style="color: #64748b; font-style: italic; border: none;">Ei aktiivisia reittejä</li>
-            </ul>
+            <ul id="gpx-route-list" class="route-list"></ul>
         </div>
     </div>
 
@@ -52,10 +50,10 @@
 
     <div id="confirm-modal" class="modal-overlay">
         <div class="modal-content">
-            <div class="modal-text">Poistetaanko piste?</div>
+            <div id="modal-text" class="modal-text"></div>
             <div class="modal-buttons">
-                <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel">Peruuta</button>
-                <button id="modal-confirm-btn" class="modal-btn modal-btn-confirm">Poista</button>
+                <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel"></button>
+                <button id="modal-confirm-btn" class="modal-btn modal-btn-confirm"></button>
             </div>
         </div>
     </div>

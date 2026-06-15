@@ -1,4 +1,3 @@
-// Douglas-Peucker -algoritmi koordinaattilistan geometrian optimoimiseksi
 export function simplifyCoordinates(points, tolerance) {
     if (points.length <= 2) return points;
     let maxSqDist = 0; let index = 0; const end = points.length - 1;
@@ -23,7 +22,6 @@ function getSquareSegmentDistance(p, p1, p2) {
     dx = p[1] - x; dy = p[0] - y; return dx * dx + dy * dy;
 }
 
-// Laskee reitin kokonaispituuden kilometreinä haetun geometrian koordinaateista
 export function calculateGpxGeometricDistance(coords) {
     let totalDist = 0;
     for (let i = 0; i < coords.length - 1; i++) {
@@ -32,7 +30,6 @@ export function calculateGpxGeometricDistance(coords) {
     return totalDist / 1000; 
 }
 
-// Etsii taulukosta lähimmän koordinaatin indeksin (käytetään ERITYISSÄÄNTÖ 1:ssä)
 export function findClosestCoordinateIndex(coords, target) {
     let minTargetDist = Infinity, targetIndex = 0;
     for(let i=0; i<coords.length; i++) {

@@ -1,4 +1,5 @@
 import { state } from './app.js';
+import { t } from './i18n.js';
 import { fetchRouteSegment } from './api.js';
 import { calculateGpxGeometricDistance, findClosestCoordinateIndex } from './utils.js';
 
@@ -11,18 +12,18 @@ export function initMap() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
+
+    updateInterfaceRouteLists();
 }
 
 export function setupMapEvents() {
     map.on('moveend', renderDynamicWaypoints);
     map.on('zoomend', renderDynamicWaypoints);
     map.on('click', async (e) => {
-        document.getElementById('sidebar').classList.remove('open');
         await handleMapClick(e.latlng);
     });
 }
 
-// 7. GEOLOKAATIO - Paikannetaan käyttäjä kartalle sykkivällä sinisellä pallolla
 export function locateUser() {
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
@@ -40,26 +41,24 @@ export function locateUser() {
                 if (state.userLocationMarker) map.removeLayer(state.userLocationMarker);
                 state.userLocationMarker = L.marker([lat, lng], { icon: blueBallIcon }).addTo(map);
             },
-            () => { console.log("Sijaintipaikannus evätty tai ei saatavilla."); },
+            () => { console.log("Geolokaatio evätty."); },
             { enableHighAccuracy: true, timeout: 7000 }
         );
     }
 }
 
-// Klikkaamalla lisätään uusia reittipisteitä
 export async function handleMapClick(latlng) {
     if (state.isReadOnly) return;
     const newPoint = [latlng.lat, latlng.lng];
     let activeRoute = state.routes[state.routes.length - 1];
 
-    // ERITYISSÄÄNTÖ 2: Jos edellinen toiminto oli GPX-tuonti, klikkaus aloittaa kokonaan uuden itsenäisen uran
     if (!activeRoute || state.lastActionWasImport) {
         const color = state.colorPalette[state.colorIndex % state.colorPalette.length];
         state.colorIndex++;
         const routeId = 'custom_' + Date.now();
         const layer = L.polyline([], { color: color, weight: 6, opacity: 0.85 }).addTo(map);
 
-        activeRoute = { id: routeId, name: 'Oma reitti', waypoints: [], coords: [], color: color, layer: layer };
+        activeRoute = { id: routeId, name: t('customRoute'), waypoints: [], coords: [], color: color, layer: layer };
         state.routes.push(activeRoute);
         state.lastActionWasImport = false;
     }
@@ -78,7 +77,6 @@ export async function handleMapClick(latlng) {
     renderDynamicWaypoints();
 }
 
-// 6. DYNAAMINEN REITTIPISTEIDEN KARSINTA JA ZOOM-AUTOMATIIKKA
 export function renderDynamicWaypoints() {
     state.clickMarkers.forEach(m => map.removeLayer(m));
     state.clickMarkers = [];
@@ -87,7 +85,6 @@ export function renderDynamicWaypoints() {
     const bounds = map.getBounds();
     const currentZoom = map.getZoom();
 
-    // Määritetään suodatettavien waypointtien enimmäismäärä zoom-tason perusteella
     let maxInsidePoints = 6; 
     if (currentZoom >= 16) maxInsidePoints = 40; 
     else if (currentZoom >= 14) maxInsidePoints = 20;
@@ -112,14 +109,12 @@ export function renderDynamicWaypoints() {
             }
             targetIndices.add(insideIndices[insideIndices.length - 1]);
 
-            // Säännönmukaisesti: näytetään vähintään yksi piste näkymärajojen ulkopuolelta ennen ja jälkeen reittiosuuden
             const firstInsideIndex = insideIndices[0];
             if (firstInsideIndex > 0) targetIndices.add(firstInsideIndex - 1);
 
             const lastInsideIndex = insideIndices[insideIndices.length - 1];
             if (lastInsideIndex < route.waypoints.length - 1) targetIndices.add(lastInsideIndex + 1);
         } else {
-            // Jos reitti on kokonaan näkymän ulkopuolella, pidetään vain alku- ja loppupisteet kartalla ladattuina
             targetIndices.add(0);
             targetIndices.add(route.waypoints.length - 1);
         }
@@ -137,14 +132,12 @@ export function renderDynamicWaypoints() {
 
             const flagMarker = L.marker([coord[0], coord[1]], { icon: flagIcon, draggable: !state.isReadOnly }).addTo(map);
             
-            // Avaa varmistusmodaali klikatessa
             flagMarker.on('click', (evt) => {
                 L.DomEvent.stopPropagation(evt);
                 state.pendingDeletion = { routeId: route.id, waypointIndex: idx };
                 document.getElementById('confirm-modal').classList.add('active');
             });
 
-            // Raahattavat markerit (Draggable) - Laske reittiosuus lennossa uudestaan
             flagMarker.on('dragend', async (evt) => {
                 const newLatLng = evt.target.getLatLng();
                 route.waypoints[idx] = [newLatLng.lat, newLatLng.lng];
@@ -156,9 +149,7 @@ export function renderDynamicWaypoints() {
     });
 }
 
-// Reitin osittainen ja täydellinen geometrian uudelleenlaskenta
 export async function recalculateWholeRouteGeometry(route, deletedIndex = null, wasEdge = false) {
-    // ERITYISSÄÄNTÖ 1: Jos alku- tai loppupiste poistetaan, ei lasketa reittiä kokonaan uusiksi, vaan poistetaan vain katkennut segmentti seuraavaan/edelliseen pisteeseen ast
     if (wasEdge && deletedIndex !== null && route.coords.length > 0) {
         if (deletedIndex === 0) {
             const nextWp = route.waypoints[0];
@@ -186,7 +177,6 @@ export async function recalculateWholeRouteGeometry(route, deletedIndex = null, 
     updateInterfaceRouteLists();
 }
 
-// 5. ERITYISSÄÄNTÖ: Itsenäisten urien yhdistäminen automaattireitityksellä
 export async function handleRouteMerge() {
     if (state.routes.length < 2) return;
     const finalMergedCoords = [];
@@ -201,7 +191,6 @@ export async function handleRouteMerge() {
         } else {
             const lastPt = finalMergedCoords[finalMergedCoords.length - 1];
             const firstPt = currentRoute.coords[0];
-            // Täytetään urien väliin jäävä aukko automaattisesti reitityksellä
             const bridge = await fetchRouteSegment(lastPt, firstPt);
             finalMergedCoords.push(...bridge.slice(1));
             finalMergedCoords.push(...currentRoute.coords.slice(1));
@@ -214,7 +203,7 @@ export async function handleRouteMerge() {
     const newRouteId = 'merged_' + Date.now();
     const newLayer = L.polyline(finalMergedCoords, { color: newColor, weight: 6, opacity: 0.9 }).addTo(map);
 
-    state.routes = [{ id: newRouteId, name: 'Yhdistetty reitti', waypoints: finalWaypoints, coords: finalMergedCoords, color: newColor, layer: newLayer }];
+    state.routes = [{ id: newRouteId, name: t('mergedRoute'), waypoints: finalWaypoints, coords: finalMergedCoords, color: newColor, layer: newLayer }];
     state.lastActionWasImport = false;
 
     updateInterfaceRouteLists();
@@ -237,7 +226,7 @@ export function updateInterfaceRouteLists() {
     exportBtn.style.display = hasAnyRoutes ? 'block' : 'none';
 
     if (state.routes.length === 0) {
-        listEl.innerHTML = `<li class="route-item" style="color: #64748b; font-style: italic; border: none;">${state.isReadOnly ? 'Vain katselutila käytössä' : 'Ei aktiivisia reittejä'}</li>`;
+        listEl.innerHTML = `<li class="route-item" style="color: #64748b; font-style: italic; border: none;">${state.isReadOnly ? t('readOnly') : t('noRoutes')}</li>`;
         return;
     }
 

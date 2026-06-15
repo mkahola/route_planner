@@ -1,19 +1,16 @@
 export const WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/';
 
-// Tarkistetaan backend-palvelun tila (GET-pyyntö)
 export async function checkWorkerStatus() {
     try {
         const response = await fetch(WORKER_URL, { method: 'GET' });
         return response.ok;
     } catch (err) {
-        console.error("Backendiin ei saatu yhteyttä:", err);
+        console.error("Taustajärjestelmä offline-tilassa:", err);
         return false;
     }
 }
 
-// Haetaan reittigeometria kahden pisteen välille (POST-pyyntö)
 export async function fetchRouteSegment(start, end) {
-    // Jos sovellus on katselutilassa, palautetaan suora viiva pisteiden välille
     const { state } = await import('./app.js');
     if (state.isReadOnly) return [start, end];
 
@@ -32,12 +29,11 @@ export async function fetchRouteSegment(start, end) {
             if (data.features && data.features.length > 0) {
                 const { simplifyCoordinates } = await import('./utils.js');
                 const segment = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                // Optimoidaan geometria Douglas-Peucker-algoritmilla lennossa
                 return simplifyCoordinates(segment, 0.00005);
             }
         }
     } catch (err) {
-        console.error("Reitityshaku epäonnistui:", err);
+        console.error("Reititysvirhe rajapinnassa:", err);
     }
-    return [start, end]; // Fallback suoralla viivalla virhetilanteissa
+    return [start, end]; 
 }

@@ -1,7 +1,6 @@
 import { state } from './app.js';
 import { map, updateInterfaceRouteLists, zoomToFitAllRoutes, renderDynamicWaypoints } from './map.js';
 
-// 5. GPX-TUONTI - Sallitaan useiden tiedostojen tuonti samanaikaisesti ja karsitaan editointipisteet
 export function handleGpxImport(e) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -29,7 +28,6 @@ export function handleGpxImport(e) {
                 const routeId = 'route_' + Date.now() + Math.random().toString(36).substr(2, 5);
                 const layer = L.polyline(rawCoords, { color: color, weight: 6, opacity: 0.85 }).addTo(map);
 
-                // Karsitaan raaka jälki sopivaan määrään editointipisteitä (maks 25-30 tasavälistä pistettä)
                 const step = Math.max(1, Math.floor(rawCoords.length / 25));
                 const calculatedWaypoints = [];
                 for(let i=0; i<rawCoords.length; i+=step) calculatedWaypoints.push(rawCoords[i]);
@@ -38,13 +36,13 @@ export function handleGpxImport(e) {
                 }
 
                 state.routes.push({ id: routeId, name: file.name.replace('.gpx', ''), waypoints: calculatedWaypoints, coords: rawCoords, color: color, layer: layer });
-                state.lastActionWasImport = true; // Aktivoi lippumuuttujan ERITYISSÄÄNTÖ 2:ta varten
+                state.lastActionWasImport = true; 
 
                 updateInterfaceRouteLists();
                 zoomToFitAllRoutes();
                 renderDynamicWaypoints();
             } catch (err) {
-                console.error("Virhe GPX-tiedoston parsinnassa:", err);
+                console.error("GPX-lukuvirhe:", err);
             }
         };
         reader.readAsText(file);
@@ -53,7 +51,6 @@ export function handleGpxImport(e) {
     document.getElementById('sidebar').classList.remove('open'); 
 }
 
-// 9. TIEDOSTOJEN TALLENNUS - Generoidaan GPX-rakenne ja ladataan tiedosto paikallisesti laitteelle
 export function handleGpxExport() {
     if (state.routes.length === 0) return;
     

@@ -1,68 +1,64 @@
+import { t } from './i18n.js';
 import { checkWorkerStatus } from './api.js';
 import { initMap, handleMapClick, handleRouteMerge, clearAllRoutes, setupMapEvents, locateUser } from './map.js';
 import { handleGpxImport, handleGpxExport } from './gpx.js';
 
-// Keskitetty sovelluksen tila (State)
 export const state = {
     isReadOnly: false,
-    routes: [],         // Lista objekteja: { id, name, waypoints, coords, color, layer }
-    clickMarkers: [],   // Kartalla parhaillaan piirretyt dynaamiset markerit
+    routes: [],         
+    clickMarkers: [],   
     colorPalette: ['#3498db', '#9b59b6', '#2ecc71', '#e67e22', '#e74c3c', '#1abc9c'],
     colorIndex: 0,
     pendingDeletion: null,
     userLocationMarker: null,
-    lastActionWasImport: false // Seuraa ERITYISSÄÄNTÖ 2 -tilannetta
+    lastActionWasImport: false 
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Alustetaan Leaflet-kartta
+    // Alustetaan kielelliset elementit ennen kartan ja rajapintojen latausta
+    translateStaticElements();
+
     initMap();
 
-    // Tarkistetaan backendin tila ja asetetaan katselutila tarvittaessa
     const apiAvailable = await checkWorkerStatus();
     if (!apiAvailable) {
         state.isReadOnly = true;
         document.getElementById('api-status').style.display = 'block';
     }
 
-    // Alustetaan karttatapahtumat ja käyttäjän paikannus
     setupMapEvents();
     locateUser();
 
-    // DOM-elementtien sidonnat ja Event Listenerit
     const menuToggle = document.getElementById('menu-toggle');
     const sidebar = document.getElementById('sidebar');
     const infoWidget = document.getElementById('info-widget');
-    const widgetHeader = infoWidget.querySelector('h3');
+    const widgetHeader = document.getElementById('widget-title');
 
-    // Estetään Leaflet-kartan pohjatapahtumat käyttöliittymäkomponenttien päältä
     L.DomEvent.disableClickPropagation(infoWidget);
     L.DomEvent.disableScrollPropagation(infoWidget);
     L.DomEvent.disableClickPropagation(sidebar);
 
-    // Hampurilaisvalikon toiminta
     menuToggle.addEventListener('click', (e) => {
         e.stopPropagation();
         sidebar.classList.toggle('open');
     });
 
-    // Suljetaan valikot karttaa klikkaamalla
-    setupMapCloseTriggers(sidebar, infoWidget);
+    document.getElementById('map').addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        if (window.innerWidth <= 768) infoWidget.classList.remove('expanded');
+    });
 
-    // Bottom Sheetin laajennus mobiilissa klikkaamalla otsikkokahvaa
     widgetHeader.addEventListener('click', () => {
         if (window.innerWidth <= 768) {
             infoWidget.classList.toggle('expanded');
         }
     });
 
-    // Sivupalkin toimintopainikkeet
     document.getElementById('clear-btn').addEventListener('click', clearAllRoutes);
     document.getElementById('merge-routes-btn').addEventListener('click', handleRouteMerge);
     document.getElementById('export-gpx-btn').addEventListener('click', handleGpxExport);
     document.getElementById('gpx-file-input').addEventListener('change', handleGpxImport);
 
-    // Varmistusmodaalin painikkeet
     document.getElementById('modal-cancel-btn').addEventListener('click', () => {
         state.pendingDeletion = null;
         document.getElementById('confirm-modal').classList.remove('active');
@@ -71,18 +67,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('modal-confirm-btn').addEventListener('click', executeWaypointDeletion);
 });
 
-function setupMapCloseTriggers(sidebar, infoWidget) {
-    // Välitetään viite map.js:lle tapahtumien sulkemista varten
-    const mapEl = document.getElementById('map');
-    mapEl.addEventListener('click', (e) => {
-        if (e.target === mapEl || e.target.id === 'map') {
-            sidebar.classList.remove('open');
-            if (window.innerWidth <= 768) infoWidget.classList.remove('expanded');
-        }
-    });
+function translateStaticElements() {
+    document.title = t('title');
+    document.getElementById('sidebar-title').textContent = t('title');
+    document.getElementById('widget-title').textContent = t('title');
+    document.getElementById('api-status').textContent = t('readOnly');
+    document.getElementById('sidebar-instruction').textContent = t('instruction');
+    document.getElementById('btn-import-label').textContent = t('importBtn');
+    document.getElementById('merge-routes-btn').textContent = t('mergeBtn');
+    document.getElementById('export-gpx-btn').textContent = t('exportBtn');
+    document.getElementById('clear-btn').textContent = t('clearBtn');
+    document.getElementById('modal-text').textContent = t('modalText');
+    document.getElementById('modal-cancel-btn').textContent = t('modalCancel');
+    document.getElementById('modal-confirm-btn').textContent = t('modalConfirm');
+    document.getElementById('label-avoid-highways').textContent = t('avoidHighways');
 }
 
-// Suoritetaan waypointin poisto vahvistuksen jälkeen
 async function executeWaypointDeletion() {
     if (!state.pendingDeletion) return;
     const { routeId, waypointIndex } = state.pendingDeletion;
