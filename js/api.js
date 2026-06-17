@@ -1,39 +1,20 @@
-export const WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/';
-
-export async function checkWorkerStatus() {
-    try {
-        const response = await fetch(WORKER_URL, { method: 'GET' });
-        return response.ok;
-    } catch (err) {
-        console.error("Taustajärjestelmä offline-tilassa:", err);
-        return false;
-    }
+const WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/';
+export async function checkBackendStatus() {
+    try { const res = await fetch(WORKER_URL, { method: 'GET' }); return res.ok; } catch { return false; }
 }
-
-export async function fetchRouteSegment(start, end) {
-    const { state } = await import('./app.js');
-    if (state.isReadOnly) return [start, end];
-
-    const avoidHighways = document.getElementById('avoid-highways-checkbox').checked;
-    const body = { coordinates: [[start[1], start[0]], [end[1], end[0]]] };
-    if (avoidHighways) body.options = { avoid_features: ["highway"] };
-
+export async function fetchORSRoute(coordinates, avoidHighways = false) {
     try {
-        const response = await fetch(WORKER_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
+        const res = await fetch(WORKER_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ coordinates, profile: 'driving-car', format: 'geojson', options: { avoid_features: avoidHighways ? ["highway"] : [] } })
         });
-        if (response.ok) {
-            const data = await response.json();
-            if (data.features && data.features.length > 0) {
-                const { simplifyCoordinates } = await import('./utils.js');
-                const segment = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                return simplifyCoordinates(segment, 0.00005);
-            }
-        }
-    } catch (err) {
-        console.error("Reititysvirhe rajapinnassa:", err);
-    }
-    return [start, end]; 
+        return res.ok ? await res.json() : null;
+    } catch { return null; }
+}
+export async function searchAddressGeocode(queryString) {
+    if (!queryString || queryString.trim().length < 3) return [];
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryString)}&limit=5`, { headers: { 'Accept-Language': 'fi, en' } });
+        return res.ok ? await res.json() : [];
+    } catch { return []; }
 }

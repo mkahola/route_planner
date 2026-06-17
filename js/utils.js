@@ -1,40 +1,29 @@
-export function simplifyCoordinates(points, tolerance) {
-    if (points.length <= 2) return points;
-    let maxSqDist = 0; let index = 0; const end = points.length - 1;
-    for (let i = 1; i < end; i++) {
-        const sqDist = getSquareSegmentDistance(points[i], points[0], points[end]);
-        if (sqDist > maxSqDist) { index = i; maxSqDist = sqDist; }
+export function calculateHaversineDistance(coord1, coord2) {
+    const R = 6371;
+    const dLat = (coord2[0] - coord1[0]) * Math.PI / 180;
+    const dLon = (coord2[1] - coord1[1]) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(coord1[0] * Math.PI / 180) * Math.cos(coord2[0] * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function getPerpendicularDistance(point, lineStart, lineEnd) {
+    let x = lineStart[0], y = lineStart[1], dx = lineEnd[0] - x, dy = lineEnd[1] - y;
+    if (dx !== 0 || dy !== 0) {
+        let t = ((point[0] - x) * dx + (point[1] - y) * dy) / (dx * dx + dy * dy);
+        if (t > 1) { x = lineEnd[0]; y = lineEnd[1]; } else if (t > 0) { x += dx * t; y += dy * t; }
     }
-    if (maxSqDist > tolerance * tolerance) {
-        const results1 = simplifyCoordinates(points.slice(0, index + 1), tolerance);
-        const results2 = simplifyCoordinates(points.slice(index), tolerance);
-        return results1.slice(0, results1.length - 1).concat(results2);
+    return Math.sqrt((point[0] - x) ** 2 + (point[1] - y) ** 2);
+}
+export function simplifyDouglasPeucker(points, tolerance) {
+    if (points.length <= 2) return points;
+    let dmax = 0, index = 0, end = points.length - 1;
+    for (let i = 1; i < end; i++) {
+        const d = getPerpendicularDistance(points[i], points[0], points[end]);
+        if (d > dmax) { index = i; dmax = d; }
+    }
+    if (dmax > tolerance) {
+        const r1 = simplifyDouglasPeucker(points.slice(0, index + 1), tolerance);
+        const r2 = simplifyDouglasPeucker(points.slice(index), tolerance);
+        return r1.slice(0, r1.length - 1).concat(r2);
     }
     return [points[0], points[end]];
-}
-
-function getSquareSegmentDistance(p, p1, p2) {
-    let x = p1[1], y = p1[0], dx = p2[1] - x, dy = p2[0] - y;
-    if (dx !== 0 || dy !== 0) {
-        let t = ((p[1] - x) * dx + (p[0] - y) * dy) / (dx * dx + dy * dy);
-        if (t > 1) { x = p2[1]; y = p2[0]; } else if (t > 0) { x += dx * t; y += dy * t; }
-    }
-    dx = p[1] - x; dy = p[0] - y; return dx * dx + dy * dy;
-}
-
-export function calculateGpxGeometricDistance(coords) {
-    let totalDist = 0;
-    for (let i = 0; i < coords.length - 1; i++) {
-        totalDist += L.latLng(coords[i][0], coords[i][1]).distanceTo(L.latLng(coords[i+1][0], coords[i+1][1]));
-    }
-    return totalDist / 1000; 
-}
-
-export function findClosestCoordinateIndex(coords, target) {
-    let minTargetDist = Infinity, targetIndex = 0;
-    for(let i=0; i<coords.length; i++) {
-        let d = Math.pow(coords[i][0] - target[0], 2) + Math.pow(coords[i][1] - target[1], 2);
-        if(d < minTargetDist) { minTargetDist = d; targetIndex = i; }
-    }
-    return targetIndex;
 }

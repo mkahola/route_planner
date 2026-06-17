@@ -2,64 +2,71 @@
 <html lang="fi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reittisuunnittelu</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
-    
-    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-
-    <button id="menu-toggle">
-        <span></span>
-        <span></span>
-        <span></span>
-    </button>
-
-    <div id="sidebar">
-        <h2 id="sidebar-title"></h2>
-        <div id="api-status"></div>
-
-        <label class="checkbox-container">
-            <input type="checkbox" id="avoid-highways-checkbox">
-            <span id="label-avoid-highways"></span>
-        </label>
-
-        <p id="sidebar-instruction" class="instruction"></p>
-
-        <div class="sidebar-actions">
-            <div class="file-upload">
-                <span id="btn-import-label" class="btn btn-secondary"></span>
-                <input type="file" id="gpx-file-input" accept=".gpx" multiple>
+    <div id="info-bar" class="info-bar hidden"></div>
+    <header id="main-header">
+        <button id="menu-toggle" aria-label="Toggle Menu">
+            <span></span><span></span><span></span>
+        </button>
+        <h1 id="app-title"></h1>
+    </header>
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-content">
+            <h2 id="sidebar-title"></h2>
+            <div class="search-section">
+                <label id="search-label" for="address-search"></label>
+                <div class="search-container">
+                    <input type="text" id="address-search" autocomplete="off">
+                    <div id="search-results" class="search-results hidden"></div>
+                </div>
             </div>
-            <button id="merge-routes-btn" class="btn btn-success" style="display: none;"></button>
-            <button id="export-gpx-btn" class="btn btn-accent" style="display: none;"></button>
-            <button id="clear-btn" class="btn btn-danger"></button>
+            <hr>
+            <div class="options-section">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="avoid-highways">
+                    <span id="label-avoid-highways"></span>
+                </label>
+            </div>
+            <hr>
+            <div class="actions-section">
+                <div class="file-input-wrapper">
+                    <button id="btn-gpx-import-trigger" class="btn btn-secondary"></button>
+                    <input type="file" id="gpx-import" accept=".gpx" multiple style="display: none;">
+                </div>
+                <button id="btn-merge-tracks" class="btn btn-primary hidden"></button>
+                <button id="btn-gpx-export" class="btn btn-success hidden"></button>
+                <button id="btn-clear-all" class="btn btn-danger"></button>
+            </div>
         </div>
-    </div>
-
-    <div id="info-widget">
-        <h3 id="widget-title"></h3>
+    </aside>
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+    <main id="map-container">
+        <div id="map"></div>
+    </main>
+    <section id="info-widget" class="info-widget">
+        <div class="widget-header">
+            <h3 id="widget-title"></h3>
+        </div>
         <div class="route-list-container">
-            <ul id="gpx-route-list" class="route-list"></ul>
+            <div id="route-stats"></div>
+            <div id="route-summary-list"></div>
         </div>
-    </div>
-
-    <div id="map"></div>
-
-    <div id="confirm-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div id="modal-text" class="modal-text"></div>
-            <div class="modal-buttons">
-                <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel"></button>
-                <button id="modal-confirm-btn" class="modal-btn modal-btn-confirm"></button>
+    </section>
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <p id="modal-text"></p>
+            <div class="modal-actions">
+                <button id="modal-btn-no" class="btn btn-secondary"></button>
+                <button id="modal-btn-yes" class="btn btn-danger"></button>
             </div>
         </div>
     </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>

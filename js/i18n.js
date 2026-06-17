@@ -1,57 +1,23 @@
-const translations = {
+const dictionary = {
     fi: {
-        title: "Reittisuunnittelu",
-        readOnly: "Vain katselutila käytössä",
-        avoidHighways: "Vältä moottoriteitä",
-        instruction: "Klikkaa karttapohjaa asettaaksesi reittipisteitä. Voit siirtää pisteitä raahaamalla niitä lipuista.",
-        importBtn: "Tuo GPX-tiedostoja",
-        mergeBtn: "Yhdistä urat yhdeksi",
-        exportBtn: "Lataa valmis GPX",
-        clearBtn: "Tyhjennä kaikki",
-        noRoutes: "Ei aktiivisia reittejä",
-        modalText: "Poistetaanko piste?",
-        modalConfirm: "Poista",
-        modalCancel: "Peruuta",
-        customRoute: "Oma reitti",
-        mergedRoute: "Yhdistetty reitti"
+        appTitle: "Reittisuunnittelu", sidebarTitle: "Asetukset", searchLabel: "Hae osoite:",
+        labelAvoidHighways: "Vältä moottoriteitä", btnGpxImport: "Tuo GPX-tiedostoja", btnMergeTracks: "Yhdistä kartan jäljet",
+        btnGpxExport: "Lataa GPX-jälki", btnClearAll: "Tyhjennä kaikki", readOnlyMode: "Vain katselutila käytössä",
+        widgetTitle: "Reitin tiedot ja Matkalista", widgetStats: "Kokonaispituus: {dist} km", widgetNoRoutes: "Ei aktiivisia reittejä piirrettynä.",
+        trackInfo: "Ura {index}: {points} herätettä ({dist} km)", confirmDeletePoint: "Poistetaanko piste?", btnYes: "Kyllä", btnNo: "Ei", searchPlaceholder: "Kirjoita osoite..."
     },
     en: {
-        title: "Route Planner",
-        readOnly: "Read-Only Mode Active",
-        avoidHighways: "Avoid Highways",
-        instruction: "Click on the map to add waypoints. Drag flags to move points, click to delete.",
-        importBtn: "Import GPX Files",
-        mergeBtn: "Merge Routes",
-        exportBtn: "Download GPX",
-        clearBtn: "Clear All",
-        noRoutes: "No active routes",
-        modalText: "Delete this waypoint?",
-        modalConfirm: "Delete",
-        modalCancel: "Cancel",
-        customRoute: "Custom Route",
-        mergedRoute: "Merged Route"
+        appTitle: "Route Planner", sidebarTitle: "Settings", searchLabel: "Search Address:",
+        labelAvoidHighways: "Avoid highways", btnGpxImport: "Import GPX files", btnMergeTracks: "Merge map tracks",
+        btnGpxExport: "Download GPX Track", btnClearAll: "Clear Everything", readOnlyMode: "Read-Only Mode Enabled",
+        widgetTitle: "Route Information and Tracks", widgetStats: "Total Distance: {dist} km", widgetNoRoutes: "No active routes planned.",
+        trackInfo: "Track {index}: {points} points ({dist} km)", confirmDeletePoint: "Delete this waypoint?", btnYes: "Yes", btnNo: "No", searchPlaceholder: "Type an address..."
     }
 };
-
-// Haetaan kaikki selaimen hyväksymät kielet taulukkona, ja lisätään varmistukseksi navigator.language
-const preferredLanguages = navigator.languages ? Array.from(navigator.languages) : [];
-if (navigator.language) preferredLanguages.unshift(navigator.language);
-
-// Esitunnistetaan kieli (oletuksena 'en')
-let detectedLang = 'en';
-
-// Käydään läpi selaimen kielilista ja katsotaan, löytyykö sieltä suomea ('fi')
-for (const lang of preferredLanguages) {
-    const shortLang = lang.split('-')[0].toLowerCase();
-    if (shortLang === 'fi') {
-        detectedLang = 'fi';
-        break; // Suomi löytyi, lopetetaan etsintä
-    }
-}
-
-// Valitaan lopullinen kieli sanakirjasta
-export const currentLang = translations[detectedLang] ? detectedLang : 'en';
-
-export function t(key) {
-    return translations[currentLang][key] || key;
+const userLanguage = navigator.language.slice(0, 2);
+export const currentLanguage = dictionary[userLanguage] ? userLanguage : 'en';
+export function t(key, variables = {}) {
+    let text = dictionary[currentLanguage][key] || dictionary['en'][key] || key;
+    Object.keys(variables).forEach(vKey => { text = text.replace(`{${vKey}}`, variables[vKey]); });
+    return text;
 }

@@ -37,6 +37,7 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 4.4. TILAN HALLINTA: Älä tallenna kielitilaa globaaleihin window-muuttujiin. Käytä sen sijaan tiukkoja moduulisidoksia ja importtaa ne puhtaasti tiedostoihin `js/app.js` ja `js/map.js`.
 
 5. REITITYSLOGIIKKA JA REITTIPUUTTEET
+- Lisää lähtöpisteen osoitekenttä (textbox) ja käytä OpenStreetMap Nominatim API-rajapintaa hakemaan osoitetta samalla kuin kenttään kirjoitetaan. Aseta osoite seuraavaksi reittipisteeksi karttapohjalle ja pidä zoom-taso ennallaan.
 - Lisää käyttöliittymään valintaruutu (checkbox) moottoriteiden välttämiselle (ORS: avoid_features: ["highway"]).
 - Karttaa klikkaamalla lisätään uusia reittipisteitä (waypoint). Reititä pisteiden välit lennossa ORS-rajapinnan kautta. Optimoi reitin geometria Douglas-Peucker-yksinkertaistuksella.
 - Näytä aktiivisten urien kokonaispituus selkeästi kilometreinä (laskettu haetusta geometriasta).
@@ -72,5 +73,5 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 11. KÄYTTÖLIITTYMÄN ASENTELU JA ULKOASU
 - Otsikoi sivu ja sidebar tekstillä "Reittisuunnittelu".
 - Vasempaan yläkulmaan tulee hampurilaispainike (kolme vaakaviivaa). Sen takaa aukeaa tyylikäs sivupalkki (Sidebar), joka sisältää: asetukset (moottoritie-checkbox), GPX-tuontipainikkeen, "Yhdistä urat" -painikkeen (näkyvissä vain jos uria on >= 2), "Lataa GPX" -painike (näkyvissä vain jos reittejä on) sekä "Tyhjennä kaikki" -painikkeen.
-- Kirjoita koodi yhteen tiedostoon siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille.
+- Kirjoita koodi modulaarisesti siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille.
 
