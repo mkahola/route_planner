@@ -8,7 +8,9 @@ const globalState = { tracks: [], avoidHighways: false, readOnlyMode: false, upd
 let mapRef = null, modalCallback = null, debounceTimer = null;
 
 function translateDOM() {
-    document.getElementById('app-title').textContent = t('appTitle'); document.getElementById('sidebar-title').textContent = t('sidebarTitle');
+    document.title = t('appTitle')
+
+    document.getElementById('sidebar-title').textContent = t('sidebarTitle');
     document.getElementById('search-label').textContent = t('searchLabel'); document.getElementById('label-avoid-highways').textContent = t('labelAvoidHighways');
     document.getElementById('btn-gpx-import-trigger').textContent = t('btnGpxImport'); document.getElementById('btn-merge-tracks').textContent = t('btnMergeTracks');
     document.getElementById('btn-gpx-export').textContent = t('btnGpxExport'); document.getElementById('btn-clear-all').textContent = t('btnClearAll');
