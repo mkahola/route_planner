@@ -1,132 +1,173 @@
-import { t } from './i18n.js';
-import { calculateHaversineDistanceInKm } from './utils.js';
-
 let map = null;
-let layerGroup = null;
-let stateRef = null;
-let onWaypointChangeCallback = null;
-let onWaypointClickCallback = null;
+let locationMarker = null; 
+let trackPolylines = [];   
 
-const colors = ['#007bc4', '#e67e22', '#2ecc71', '#9b59b6', '#f1c40f', '#e74c3c'];
+export function initializeLeafletMapInstance(elementId, globalState, onReRoute, onDeletePrompt) {
+    // Alustetaan kartta oletuksena Suomen kohdalle
+    map = L.map(elementId).setView([64.9146, 26.0672], 5);
 
-export function initializeLeafletMapInstance(id, state, onWaypointChange, onWaypointClick) {
-    stateRef = state;
-    onWaypointChangeCallback = onWaypointChange;
-    onWaypointClickCallback = onWaypointClick;
-
-    map = L.map(id, { zoomControl: false }).setView([60.1699, 24.9384], 13);
-    L.control.zoom({ position: 'topright' }).addTo(map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    layerGroup = L.layerGroup().addTo(map);
+    // Kuunnellaan kartan liikuttelua dynaamista karsintaa varten
+    map.on('moveend zoomend', () => {
+        handleDynamicWaypointPruning(globalState);
+    });
 
-    map.on('moveend', handleViewPortBoundsMarkersPruning);
-    map.on('zoomend', handleViewPortBoundsMarkersPruning);
+    // Tallennetaan reitityksen takaisinkutsut karttaobjektiin
+    map._onReRoute = onReRoute;
+    map._onDeletePrompt = onDeletePrompt;
 
     return map;
 }
 
-export function renderGPXLocationPulseMarker(lat, lng) {
+// Piirretään tai päivitetään GPS-sijaintipallo kartalle
+export function renderGPXLocationPulseMarker(lat, lon) {
+    if (!map) return;
+
+    const latlng = L.latLng(lat, lon);
+
+    // Keskipisteeseen [12, 12] ankkuroidun divIconin avulla pallo pysyy paikoillaan zoomatessa
     const pulseIcon = L.divIcon({
-        className: 'gps-pulse-marker',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8]
+        className: 'gps-pulse-wrapper',
+        html: '<div class="gps-pulse-ring"></div><div class="gps-pulse-core"></div>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12] 
     });
-    L.marker([lat, lng], { icon: pulseIcon }).addTo(map);
-    map.setView([lat, lng], 14);
+
+    if (locationMarker) {
+        locationMarker.setLatLng(latlng);
+    } else {
+        locationMarker = L.marker(latlng, { icon: pulseIcon }).addTo(map);
+        map.setView(latlng, 14); // Keskitetään kartta käyttäjään vain ensimmäisellä kerralla
+    }
 }
 
-function handleViewPortBoundsMarkersPruning() {
-    if (!stateRef) return;
-    renderAllMapLayersAndTracks();
-}
+// Tyhjennetään vanhat viivat ja piirretään kaikki urat sekä niiden geometriat uudestaan
+export function renderAllMapLayersAndTracks(globalState) {
+    if (!map || !globalState) return;
 
-export function renderAllMapLayersAndTracks() {
-    layerGroup.clearLayers();
-    const currentZoom = map.getZoom();
-    const bounds = map.getBounds();
+    // Puhdistetaan vanhat reittiviivat kartalta
+    trackPolylines.forEach(polyline => map.removeLayer(polyline));
+    trackPolylines = [];
 
-    let maxVisibleMarkers = 6;
-    if (currentZoom >= 16) maxVisibleMarkers = 40;
-    else if (currentZoom >= 14) maxVisibleMarkers = 20;
-    else if (currentZoom >= 11) maxVisibleMarkers = 12;
-
-    stateRef.tracks.forEach((track, trackIndex) => {
-        const color = colors[trackIndex % colors.length];
-
+    // Piirretään urat
+    globalState.tracks.forEach((track, trackIdx) => {
         if (track.routeGeometry && track.routeGeometry.length > 0) {
-            L.polyline(track.routeGeometry, { color: color, weight: 5, opacity: 0.75 }).addTo(layerGroup);
+            const polyline = L.polyline(track.routeGeometry, {
+                color: track.isImportedGPX ? '#28a745' : '#007bff', 
+                weight: 5,
+                opacity: 0.75
+            }).addTo(map);
+
+            trackPolylines.push(polyline);
         }
 
-        const wps = track.waypoints;
-        if (wps.length === 0) return;
+        // Päivitetään olemassa olevien markerien kuuntelijat vastaamaan vakautettua dragend-logiikkaa
+        track.waypoints.forEach((wp, wpIdx) => {
+            wp.off('drag');
+            wp.off('dragend');
+            wp.on('dragend', (e) => {
+                if (map._onReRoute) map._onReRoute(trackIdx, wpIdx, wp.getLatLng());
+            });
+            wp.off('click');
+            wp.on('click', () => {
+                if (map._onDeletePrompt) map._onDeletePrompt(trackIdx, wpIdx);
+            });
+        });
+    });
 
-        const indicesToRender = new Set();
-        indicesToRender.add(0);
-        indicesToRender.add(wps.length - 1);
+    // Ajetaan karsinta näkyvyyden päivittämiseksi
+    handleDynamicWaypointPruning(globalState);
+}
 
-        const insideBoundsIndices = [];
-        for (let i = 1; i < wps.length - 1; i++) {
-            if (bounds.contains(wps[i].getLatLng())) {
-                insideBoundsIndices.push(i);
+// Luodaan dynaaminen ja interaktiivinen reittipistemarkeri tarkalla ankkuroinnilla
+export function createInteractiveWaypointMarker(latlng, trackIndex, wpIndex) {
+    // Määritetään oletusmarkerille tarkat koot ja ankkuripisteet [12, 41]
+    // Tämä naulaa markerin alareunan kärjen kiinni tiehen, eikä se liiku zoomatessa
+    const customIcon = L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41], 
+        shadowSize: [41, 41],
+        shadowAnchor: [12, 41]
+    });
+
+    const marker = L.marker(latlng, { 
+        draggable: true,
+        icon: customIcon
+    });
+    
+    // Ohitetaan dynaaminen piilottaminen klikkaushetkellä ennen kuin karttaa liikutetaan
+    marker.isNewPoint = true; 
+
+    // Lasketaan reitti uusiksi vasta kun käyttäjä päästää markkerista irti (dragend)
+    marker.on('dragend', (e) => {
+        if (map._onReRoute) {
+            map._onReRoute(trackIndex, wpIndex, marker.getLatLng());
+        }
+    });
+
+    marker.on('click', () => {
+        if (map._onDeletePrompt) {
+            map._onDeletePrompt(trackIndex, wpIndex);
+        }
+    });
+
+    return marker;
+}
+
+export function calculateTrackGeometryTotalDistance(routeGeometry) {
+    if (!routeGeometry || routeGeometry.length < 2) return 0;
+    let dist = 0;
+    for (let i = 0; i < routeGeometry.length - 1; i++) {
+        const p1 = L.latLng(routeGeometry[i][0], routeGeometry[i][1]);
+        const p2 = L.latLng(routeGeometry[i+1][0], routeGeometry[i+1][1]);
+        dist += p1.distanceTo(p2);
+    }
+    return dist / 1000; 
+}
+
+// Dynaaminen markerien karsinta zoom-tason ja karttanäkymän (Bounds) mukaan
+function handleDynamicWaypointPruning(globalState) {
+    if (!map || !globalState || !globalState.tracks) return;
+    
+    const bounds = map.getBounds();
+    const currentZoom = map.getZoom();
+    const hasBounds = bounds && typeof bounds.contains === 'function';
+
+    globalState.tracks.forEach((track) => {
+        const totalWps = track.waypoints.length;
+        
+        let maxVisibleMarkers = 10;
+        if (currentZoom >= 16) maxVisibleMarkers = 40;
+        else if (currentZoom >= 12) maxVisibleMarkers = 20;
+
+        const skipFactor = Math.ceil(totalWps / maxVisibleMarkers);
+
+        track.waypoints.forEach((wp, wpIdx) => {
+            // Jos kyseessä on uusi piste, pakotetaan se näkyviin heti klikkauksesta
+            if (wp.isNewPoint) {
+                if (!map.hasLayer(wp)) wp.addTo(map);
+                return;
             }
-        }
 
-        const step = Math.max(1, Math.ceil(insideBoundsIndices.length / maxVisibleMarkers));
-        for (let i = 0; i < insideBoundsIndices.length; i += step) {
-            indicesToRender.add(insideBoundsIndices[i]);
-        }
-
-        let firstInsideIndex = -1;
-        let lastInsideIndex = -1;
-        for (let i = 0; i < wps.length; i++) {
-            if (bounds.contains(wps[i].getLatLng())) {
-                if (firstInsideIndex === -1) firstInsideIndex = i;
-                lastInsideIndex = i;
+            if (!hasBounds) {
+                if (!map.hasLayer(wp)) wp.addTo(map);
+                return;
             }
-        }
 
-        if (firstInsideIndex > 0) indicesToRender.add(firstInsideIndex - 1);
-        if (lastInsideIndex !== -1 && lastInsideIndex < wps.length - 1) indicesToRender.add(lastInsideIndex + 1);
+            const isEdgePoint = (wpIdx === 0 || wpIdx === totalWps - 1);
+            const isSampled = (wpIdx % skipFactor === 0);
+            const isInBounds = bounds.contains(wp.getLatLng());
 
-        wps.forEach((wp, wpIndex) => {
-            if (indicesToRender.has(wpIndex)) {
-                wp.options.icon.options.html = `<div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>`;
-                wp.addTo(layerGroup);
-
-                wp.off('dragend');
-                wp.on('dragend', (e) => {
-                    onWaypointChangeCallback(trackIndex, wpIndex, e.target.getLatLng());
-                });
-
-                wp.off('click');
-                wp.on('click', () => {
-                    onWaypointClickCallback(trackIndex, wpIndex);
-                });
+            if ((isEdgePoint || isSampled) && isInBounds) {
+                if (!map.hasLayer(wp)) wp.addTo(map);
+            } else {
+                if (map.hasLayer(wp)) wp.remove(map);
             }
         });
     });
-}
-
-export function createInteractiveWaypointMarker(latLng) {
-    const icon = L.divIcon({
-        className: 'custom-wp-icon',
-        html: '<div></div>',
-        iconSize: [12, 12],
-        iconAnchor: [6, 6]
-    });
-    return L.marker(latLng, { draggable: !stateRef.readOnlyMode, icon: icon });
-}
-
-export function calculateTrackGeometryTotalDistance(geometry) {
-    let dist = 0;
-    for (let i = 0; i < geometry.length - 1; i++) {
-        dist += calculateHaversineDistanceInKm(
-            geometry[i][0], geometry[i][1],
-            geometry[i+1][0], geometry[i+1][1]
-        );
-    }
-    return dist;
 }

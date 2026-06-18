@@ -406,12 +406,56 @@ body {
 }
 
 /* Pulsing blue location marker */
+/* GPS Sijaintipallon korjatut tyylit */
 .gps-pulse-marker {
     background: #007bc4;
     border: 2px solid white;
     border-radius: 50%;
     box-shadow: 0 0 0 0 rgba(0, 123, 196, 0.7);
     animation: pulse 1.8s infinite;
+}
+
+.gps-pulse-wrapper {
+    position: relative !important;
+    width: 24px !important;
+    height: 24px !important;
+}
+
+.gps-pulse-core {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 12px;
+    height: 12px;
+    background-color: #007bff;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    z-index: 5;
+}
+
+.gps-pulse-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 24px;
+    height: 24px;
+    background-color: rgba(0, 123, 255, 0.4);
+    border: 1px solid rgba(0, 123, 255, 0.6);
+    border-radius: 50%;
+    animation: gpsPulseAnimation 2s infinite ease-out !important;
+    z-index: 1;
+}
+
+@keyframes gpsPulseAnimation {
+    0% {
+        transform: scale(0.3);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(2.2);
+        opacity: 0;
+    }
 }
 
 @keyframes pulse {
