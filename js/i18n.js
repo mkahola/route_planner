@@ -1,23 +1,50 @@
-const dictionary = {
+const dict = {
     fi: {
-        appTitle: "Reittisuunnittelu", sidebarTitle: "Asetukset", searchLabel: "Hae osoite:",
-        labelAvoidHighways: "Vältä moottoriteitä", btnGpxImport: "Tuo GPX-tiedostoja", btnMergeTracks: "Yhdistä kartan jäljet",
-        btnGpxExport: "Lataa GPX-jälki", btnClearAll: "Tyhjennä kaikki", readOnlyMode: "Vain katselutila käytössä",
-        widgetTitle: "Reitin tiedot ja Matkalista", widgetStats: "Kokonaispituus: {dist} km", widgetNoRoutes: "Ei aktiivisia reittejä piirrettynä.",
-        trackInfo: "Ura {index}: {points} herätettä ({dist} km)", confirmDeletePoint: "Poistetaanko piste?", btnYes: "Kyllä", btnNo: "Ei", searchPlaceholder: "Kirjoita osoite..."
+        readOnlyMode: "Vain katselutila käytössä",
+        sidebarTitle: "Reittisuunnittelu",
+        searchLabel: "Hae aloitusosoitetta:",
+        searchPlaceholder: "Kirjoita osoite...",
+        labelAvoidHighways: "Vältä moottoriteitä",
+        btnGpxImport: "Tuo GPX-tiedostoja",
+        btnMergeTracks: "Yhdistä kartan urat",
+        btnGpxExport: "Lataa GPX-jälki",
+        btnClearAll: "Tyhjennä kaikki",
+        widgetTitle: "Reitin tiedot & Matkalista",
+        widgetStats: "Kokonaispituus: {dist} km",
+        widgetNoRoutes: "Ei aktiivisia reittejä piirrettynä.",
+        trackInfo: "Ura {index}: {points} pistettä ({dist} km)",
+        confirmDeletePoint: "Poistetaanko piste?",
+        btnYes: "Kyllä",
+        btnNo: "Ei"
     },
     en: {
-        appTitle: "Route Planner", sidebarTitle: "Settings", searchLabel: "Search Address:",
-        labelAvoidHighways: "Avoid highways", btnGpxImport: "Import GPX files", btnMergeTracks: "Merge map tracks",
-        btnGpxExport: "Download GPX Track", btnClearAll: "Clear Everything", readOnlyMode: "Read-Only Mode Enabled",
-        widgetTitle: "Route Information and Tracks", widgetStats: "Total Distance: {dist} km", widgetNoRoutes: "No active routes planned.",
-        trackInfo: "Track {index}: {points} points ({dist} km)", confirmDeletePoint: "Delete this waypoint?", btnYes: "Yes", btnNo: "No", searchPlaceholder: "Type an address..."
+        readOnlyMode: "Read-Only Mode Active",
+        sidebarTitle: "Route Planner",
+        searchLabel: "Search Starting Address:",
+        searchPlaceholder: "Type an address...",
+        labelAvoidHighways: "Avoid highways",
+        btnGpxImport: "Import GPX Files",
+        btnMergeTracks: "Merge map tracks",
+        btnGpxExport: "Download GPX Track",
+        btnClearAll: "Clear All",
+        widgetTitle: "Route Info & Tracklist",
+        widgetStats: "Total Length: {dist} km",
+        widgetNoRoutes: "No active routes drawn.",
+        trackInfo: "Track {index}: {points} points ({dist} km)",
+        confirmDeletePoint: "Delete this waypoint?",
+        btnYes: "Yes",
+        btnNo: "No"
     }
 };
-const userLanguage = navigator.language.slice(0, 2);
-export const currentLanguage = dictionary[userLanguage] ? userLanguage : 'en';
+
+const userLang = navigator.language.startsWith('fi') ? 'fi' : 'en';
+
+export const currentLanguage = userLang;
+
 export function t(key, variables = {}) {
-    let text = dictionary[currentLanguage][key] || dictionary['en'][key] || key;
-    Object.keys(variables).forEach(vKey => { text = text.replace(`{${vKey}}`, variables[vKey]); });
+    let text = dict[userLang][key] || dict['en'][key] || key;
+    Object.keys(variables).forEach(vKey => {
+        text = text.replace(`{${vKey}}`, variables[vKey]);
+    });
     return text;
 }

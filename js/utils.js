@@ -1,29 +1,39 @@
-export function calculateHaversineDistance(coord1, coord2) {
+export function calculateHaversineDistanceInKm(lat1, lon1, lat2, lon2) {
     const R = 6371;
-    const dLat = (coord2[0] - coord1[0]) * Math.PI / 180;
-    const dLon = (coord2[1] - coord1[1]) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(coord1[0] * Math.PI / 180) * Math.cos(coord2[0] * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
 }
-function getPerpendicularDistance(point, lineStart, lineEnd) {
-    let x = lineStart[0], y = lineStart[1], dx = lineEnd[0] - x, dy = lineEnd[1] - y;
-    if (dx !== 0 || dy !== 0) {
-        let t = ((point[0] - x) * dx + (point[1] - y) * dy) / (dx * dx + dy * dy);
-        if (t > 1) { x = lineEnd[0]; y = lineEnd[1]; } else if (t > 0) { x += dx * t; y += dy * t; }
+
+function findPerpendicularDistance(p, p1, p2) {
+    if (p1[0] === p2[0] && p1[1] === p2[1]) {
+        return Math.sqrt(Math.pow(p[0] - p1[0], 2) + Math.pow(p[1] - p1[1], 2));
     }
-    return Math.sqrt((point[0] - x) ** 2 + (point[1] - y) ** 2);
+    const num = Math.abs((p2[1] - p1[1]) * p[0] - (p2[0] - p1[0]) * p[1] + p2[0] * p1[1] - p2[1] * p1[0]);
+    const den = Math.sqrt(Math.pow(p2[1] - p1[1], 2) + Math.pow(p2[0] - p1[0], 2));
+    return num / den;
 }
-export function simplifyDouglasPeucker(points, tolerance) {
+
+export function simplifyPointsDouglasPeucker(points, tolerance) {
     if (points.length <= 2) return points;
-    let dmax = 0, index = 0, end = points.length - 1;
+    let maxSqDist = 0;
+    let index = 0;
+    const end = points.length - 1;
     for (let i = 1; i < end; i++) {
-        const d = getPerpendicularDistance(points[i], points[0], points[end]);
-        if (d > dmax) { index = i; dmax = d; }
+        const d = findPerpendicularDistance(points[i], points[0], points[end]);
+        if (d > maxSqDist) {
+            index = i;
+            maxSqDist = d;
+        }
     }
-    if (dmax > tolerance) {
-        const r1 = simplifyDouglasPeucker(points.slice(0, index + 1), tolerance);
-        const r2 = simplifyDouglasPeucker(points.slice(index), tolerance);
-        return r1.slice(0, r1.length - 1).concat(r2);
+    if (maxSqDist > tolerance) {
+        const results1 = simplifyPointsDouglasPeucker(points.slice(0, index + 1), tolerance);
+        const results2 = simplifyPointsDouglasPeucker(points.slice(index), tolerance);
+        return results1.slice(0, results1.length - 1).concat(results2);
     }
     return [points[0], points[end]];
 }

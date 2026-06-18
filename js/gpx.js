@@ -1,32 +1,36 @@
-export function parseGPXToCoordinates(xmlTextString) {
-    const coords = [];
-    try {
-        const xmlDoc = new DOMParser().parseFromString(xmlTextString, "text/xml");
-        const points = xmlDoc.getElementsByTagName("trkpt");
-        for (let i = 0; i < points.length; i++) {
-            const lat = parseFloat(points[i].getAttribute("lat")), lon = parseFloat(points[i].getAttribute("lon"));
-            if (!isNaN(lat) && !isNaN(lon)) coords.push([lat, lon]);
+export function parseGPXToCoordinates(xmlString) {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+    const trkpts = xmlDoc.getElementsByTagName("trkpt");
+    const points = [];
+    for (let i = 0; i < trkpts.length; i++) {
+        const lat = parseFloat(trkpts[i].getAttribute("lat"));
+        const lon = parseFloat(trkpts[i].getAttribute("lon"));
+        if (!isNaN(lat) && !isNaN(lon)) {
+            points.push([lat, lon]);
         }
-        if (coords.length === 0) {
-            const wpts = xmlDoc.getElementsByTagName("wpt");
-            for (let i = 0; i < wpts.length; i++) {
-                const lat = parseFloat(wpts[i].getAttribute("lat")), lon = parseFloat(wpts[i].getAttribute("lon"));
-                if (!isNaN(lat) && !isNaN(lon)) coords.push([lat, lon]);
-            }
-        }
-    } catch { console.error("GPX-jäsennys epäonnistui."); }
-    return coords;
+    }
+    return points;
 }
-export function exportTracksToGPXFile(allTracks) {
-    if (!allTracks || allTracks.length === 0) return;
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Modulaarinen Reittisuunnittelija" xmlns="http://www.topografix.com/GPX/1/1">\n`;
-    allTracks.forEach((track, idx) => {
-        if (track.length === 0) return;
-        xml += `  <trk>\n    <name>Ura - Track ${idx + 1}</name>\n    <trkseg>\n`;
-        track.forEach(pt => { xml += `      <trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>\n`; });
-        xml += `    </trkseg>\n  </trk>\n`;
+
+export function exportTracksToGPXFile(tracks) {
+    let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Web Route Planner" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+    tracks.forEach((track, index) => {
+        gpx += `  <trk>\n    <name>Track ${index + 1}</name>\n    <trkseg>\n`;
+        track.routeGeometry.forEach(pt => {
+            gpx += `      <trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>\n`;
+        });
+        gpx += `    </trkseg>\n  </trk>\n`;
     });
-    xml += `</gpx>`;
-    const blob = new Blob([xml], { type: 'application/gpx+xml' }), a = document.createElement('a');
-    a.download = `route_export_${new Date().toISOString().slice(0,10)}.gpx`; a.href = URL.createObjectURL(blob); a.click(); URL.revokeObjectURL(a.href);
+    gpx += `</gpx>`;
+    
+    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'route-plan.gpx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
