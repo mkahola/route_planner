@@ -1,13 +1,20 @@
 let map = null;
-let locationMarker = null; 
-let trackPolylines = [];   
+let locationMarker = null;
+let trackPolylines = [];
 
 export function initializeLeafletMapInstance(elementId, globalState, onReRoute, onDeletePrompt) {
-    // Alustetaan kartta oletuksena Suomen kohdalle
-    map = L.map(elementId).setView([64.9146, 26.0672], 5);
+    // Alustetaan kartta ja otetaan oletuszoom-painikkeet pois käytöstä (zoomControl: false)
+    map = L.map(elementId, {
+        zoomControl: false
+    }).setView([64.9146, 26.0672], 5);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // LISÄTTY: Luodaan uusi zoom-valikko ja pakotetaan se oikeaan yläkulmaan ('topright')
+    L.control.zoom({
+        position: 'topright'
     }).addTo(map);
 
     // Kuunnellaan kartan liikuttelua dynaamista karsintaa varten
