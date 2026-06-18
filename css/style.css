@@ -1,17 +1,6 @@
-:root {
-    --bg-light: #ffffff;
-    --bg-dark: #1a1a1a;
-    --primary: #007bc4;
-    --secondary: #6c757d;
-    --success: #28a745;
-    --danger: #dc3545;
-    --text-dark: #212529;
-    --text-light: #f8f9fa;
-    --border-color: #ced4da;
-    --shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    --transition: all 0.3s ease;
-}
-
+/* ==========================================================================
+   1. GLOBAALIT TYYLIT & PERUSASETUKSET
+   ========================================================================== */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -20,159 +9,169 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: var(--text-dark);
     background-color: #f8f9fa;
+    color: #333333;
+    overflow: hidden; /* Estetään koko sivun skrollaus, kartta ja widgetit hoitavat oman alueensa */
+    width: 100vw;
     height: 100vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
 }
 
+/* Infopalkki yläreunassa (esim. Read-only tila) */
 .info-bar {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    background-color: var(--danger);
-    color: var(--text-light);
+    right: 0;
+    background-color: #ffc107;
+    color: #212529;
     text-align: center;
-    padding: 10px;
+    padding: 8px;
+    font-size: 14px;
     font-weight: bold;
-    z-index: 20000;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    transition: var(--transition);
+    z-index: 2000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .info-bar.hidden {
-    transform: translateY(-100%);
+    display: none;
 }
 
-#map-container {
-    flex-grow: 1;
-    position: relative;
-    width: 100%;
-    height: 100vh;
-}
-
-#map {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-}
-
+/* ==========================================================================
+   2. HAMPURILAISVALIKKO (Vasen yläkulma)
+   ========================================================================== */
 #menu-toggle {
-    position: absolute;
-    top: 90px;
+    position: fixed;
+    top: 15px;
     left: 15px;
-    z-index: 10005;
-    background-color: var(--bg-light);
-    border: 1px solid var(--border-color);
+    width: 45px;
+    height: 45px;
+    background-color: #ffffff;
+    border: 1px solid rgba(0,0,0,0.2);
     border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.4);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 4px;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    box-shadow: var(--shadow);
-    transition: var(--transition);
+    gap: 5px;
+    z-index: 1001; /* Korkeampi kuin Leafletin kontrollit (1000) */
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+}
+
+#menu-toggle:hover {
+    background-color: #f4f4f4;
 }
 
 #menu-toggle span {
     display: block;
+    width: 24px;
     height: 3px;
-    width: 20px;
-    background-color: var(--text-dark);
-    border-radius: 3px;
+    background-color: #333333;
+    border-radius: 2px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
-#menu-toggle:hover {
-    background-color: #f1f3f5;
+/* Kun sivupalkki avataan, siirretään hampurilaispainike nätisti sen reunaan */
+.sidebar.open ~ #menu-toggle {
+    left: 315px; /* Sivupalkin leveys 300px + 15px marginaali */
 }
 
+/* Animoidaan hampurilainen ristiksi kun valikko on auki */
+.sidebar.open ~ #menu-toggle span:nth-child(1) {
+    transform: translateY(8px) rotate(45deg);
+}
+.sidebar.open ~ #menu-toggle span:nth-child(2) {
+    opacity: 0;
+}
+.sidebar.open ~ #menu-toggle span:nth-child(3) {
+    transform: translateY(-8px) rotate(-45deg);
+}
+
+/* ==========================================================================
+   3. SIVUPALKKI (Sidebar) & GEOMUUNNOKSET
+   ========================================================================== */
 .sidebar {
     position: fixed;
     top: 0;
-    left: -320px;
-    width: 320px;
+    left: -300px; /* Piilossa oletuksena vasemmalla */
+    width: 300px;
     height: 100%;
-    background-color: var(--bg-light);
+    background-color: #ffffff;
     box-shadow: 2px 0 10px rgba(0,0,0,0.2);
-    z-index: 10010;
-    transition: var(--transition);
-    padding: 20px;
+    z-index: 1005;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 80px 20px 20px 20px; /* Yläreunaan tilaa painikkeelle */
     display: flex;
     flex-direction: column;
     gap: 20px;
-    overflow-y: auto;
 }
 
 .sidebar.open {
     left: 0;
 }
 
+/* Taustan peitto (Overlay) mobiilissa ja työpöydällä kun valikko on auki */
 .sidebar-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0,0,0,0.4);
-    z-index: 10000;
-    display: none;
+    background-color: rgba(0,0,0,0.4);
+    z-index: 1004;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
 }
 
 .sidebar-overlay.open {
-    display: block;
+    opacity: 1;
+    pointer-events: auto;
 }
 
-.sidebar h2 {
-    font-size: 22px;
-    font-weight: 600;
-    border-bottom: 2px solid #e9ecef;
-    padding-bottom: 10px;
-}
-
+/* Hakukenttä sivupalkissa */
 .search-box {
-    position: relative;
     display: flex;
     flex-direction: column;
     gap: 5px;
+    position: relative;
 }
 
 .search-box label {
     font-size: 14px;
     font-weight: 600;
+    color: #495057;
 }
 
 .search-box input {
     width: 100%;
     padding: 10px;
-    border: 1px solid var(--border-color);
+    border: 1px solid #ced4da;
     border-radius: 4px;
     font-size: 14px;
+    outline: none;
 }
 
+.search-box input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+}
+
+/* Hakutulosten pudotusvalikko */
 .search-results {
     position: absolute;
     top: 100%;
     left: 0;
-    width: 100%;
-    background: var(--bg-light);
-    border: 1px solid var(--border-color);
+    right: 0;
+    background-color: #ffffff;
+    border: 1px solid #ced4da;
     border-top: none;
     border-radius: 0 0 4px 4px;
     max-height: 200px;
     overflow-y: auto;
-    z-index: 100;
-    box-shadow: var(--shadow);
+    z-index: 1010;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
 .search-results div {
@@ -184,141 +183,115 @@ body {
 
 .search-results div:hover {
     background-color: #f8f9fa;
+    color: #007bff;
 }
 
-.checkbox-container {
-    display: flex;
-    align-items: center;
-    position: relative;
-    padding-left: 30px;
-    cursor: pointer;
-    font-size: 14px;
-    user-select: none;
-}
-
-.checkbox-container input {
-    position: absolute;
-    opacity: 0;
-    cursor: pointer;
-    height: 0;
-    width: 0;
-}
-
-.checkmark {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 20px;
-    width: 20px;
-    background-color: #eee;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-}
-
-.checkbox-container:hover input ~ .checkmark {
-    background-color: #ccc;
-}
-
-.checkbox-container input:checked ~ .checkmark {
-    background-color: var(--primary);
-    border-color: var(--primary);
-}
-
-.checkmark:after {
-    content: "";
-    position: absolute;
+.search-results.hidden {
     display: none;
 }
 
-.checkbox-container input:checked ~ .checkmark:after {
-    display: block;
-}
-
-.checkbox-container .checkmark:after {
-    left: 6px;
-    top: 2px;
-    width: 5px;
-    height: 10px;
-    border: solid white;
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
-}
-
+/* Toimintapainikkeet sivupalkissa */
 .actions {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-top: auto;
+    margin-top: auto; /* Työnnetään painikkeet alareunaan */
 }
 
+/* ==========================================================================
+   4. PAINIKKEET (Buttons)
+   ========================================================================== */
 .btn {
     width: 100%;
     padding: 12px;
     border: none;
     border-radius: 4px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: bold;
     cursor: pointer;
-    transition: var(--transition);
-    color: var(--text-light);
+    transition: background-color 0.2s ease, transform 0.1s ease;
     text-align: center;
 }
 
-.btn-primary { background-color: var(--primary); }
-.btn-primary:hover { background-color: #00629b; }
-.btn-secondary { background-color: var(--secondary); }
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-primary { background-color: #007bff; color: #ffffff; }
+.btn-primary:hover { background-color: #0056b3; }
+
+.btn-secondary { background-color: #6c757d; color: #ffffff; }
 .btn-secondary:hover { background-color: #545b62; }
-.btn-success { background-color: var(--success); }
-.btn-success:hover { background-color: #1e7e34; }
-.btn-danger { background-color: var(--danger); }
+
+.btn-success { background-color: #28a745; color: #ffffff; }
+.btn-success:hover { background-color: #218838; }
+
+.btn-danger { background-color: #dc3545; color: #ffffff; }
 .btn-danger:hover { background-color: #bd2130; }
 
-.hidden { display: none !important; }
+.hidden {
+    display: none !important;
+}
 
-/* Bottom sheet widget styles */
+/* ==========================================================================
+   5. KARTTAKONTTAINER (Map Container)
+   ========================================================================== */
+#map-container {
+    width: 100vw;
+    height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+/* ==========================================================================
+   6. ALAREUNAN REITTIVIDGET (Info Widget)
+   ========================================================================== */
 .info-widget {
-    background-color: var(--bg-light);
-    box-shadow: var(--shadow);
-    z-index: 9999;
-    transition: var(--transition);
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 500px;
+    background-color: #ffffff;
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
+    z-index: 1002;
     display: flex;
     flex-direction: column;
-    border-radius: 8px 8px 0 0;
+    max-height: 35vh;
+    transition: max-height 0.3s ease;
 }
 
 .widget-handle {
-    padding: 15px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid var(--border-color);
+    padding: 12px;
+    background-color: #f1f3f5;
     text-align: center;
-    position: relative;
+    font-size: 15px;
+    font-weight: bold;
+    border-bottom: 1px solid #dee2e6;
+    cursor: default;
     border-radius: 8px 8px 0 0;
-}
-
-.widget-handle::before {
-    content: "";
-    position: absolute;
-    top: 6px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 4px;
-    background-color: #adb5bd;
-    border-radius: 2px;
 }
 
 .route-list-container {
     padding: 15px;
+    overflow-y: auto;
     flex-grow: 1;
 }
 
 .route-stats {
-    font-weight: bold;
+    font-weight: 600;
     margin-bottom: 10px;
-    font-size: 15px;
+    color: #495057;
+    font-size: 14px;
 }
 
 .route-list {
@@ -329,75 +302,43 @@ body {
 }
 
 .route-list li {
-    padding: 10px;
-    background-color: #f1f3f5;
-    border-radius: 4px;
+    padding: 8px;
+    background-color: #f8f9fa;
+    border-left: 4px solid #007bff;
+    border-radius: 0 4px 4px 0;
     font-size: 13px;
-    border-left: 4px solid var(--primary);
 }
 
-/* Desktop and Responsive Layout Rules */
-@media (min-width: 769px) {
-    .info-widget {
-        position: fixed;
-        left: 15px;
-        bottom: 15px;
-        width: 350px;
-        max-height: 400px;
-        border-radius: 8px;
-    }
-    .widget-handle::before { display: none; }
-    .widget-handle { border-radius: 8px 8px 0 0; text-align: left; padding-top: 15px;}
-    .route-list-container { overflow-y: auto; max-height: 340px; }
-}
-
-@media (max-width: 768px) {
-    .info-widget {
-        position: fixed !important;
-        left: 0 !important;
-        bottom: 0 !important;
-        right: 0 !important;
-        width: 100% !important;
-        height: 65px !important;
-    }
-    .info-widget .route-list-container {
-        display: none;
-    }
-    .info-widget.expanded {
-        height: 50vh !important;
-    }
-    .info-widget.expanded .route-list-container {
-        display: block;
-        overflow-y: auto;
-        height: calc(50vh - 65px);
-    }
-}
-
-/* Modal styles */
+/* ==========================================================================
+   7. VAHVISTUSMODAALI (Confirmation Modal)
+   ========================================================================== */
 .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0,0,0,0.5);
-    z-index: 30000;
+    background-color: rgba(0,0,0,0.5);
     display: flex;
     justify-content: center;
     align-items: center;
+    z-index: 2050;
 }
 
 .modal {
-    background: var(--bg-light);
+    background-color: #ffffff;
     padding: 20px;
-    border-radius: 8px;
-    box-shadow: var(--shadow);
-    max-width: 90%;
-    width: 300px;
+    border-radius: 6px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    width: 90%;
+    max-width: 400px;
     text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+}
+
+.modal p {
+    margin-bottom: 20px;
+    font-size: 15px;
+    font-weight: 500;
 }
 
 .modal-buttons {
@@ -405,20 +346,51 @@ body {
     gap: 10px;
 }
 
-/* Pulsing blue location marker */
-/* GPS Sijaintipallon korjatut tyylit */
-.gps-pulse-marker {
-    background: #007bc4;
-    border: 2px solid white;
-    border-radius: 50%;
-    box-shadow: 0 0 0 0 rgba(0, 123, 196, 0.7);
-    animation: pulse 1.8s infinite;
+/* ==========================================================================
+   8. MOBIILILAITTEIDEN OPTIMOINTI (Media Queries)
+   ========================================================================== */
+@media (max-width: 768px) {
+    /* Siirretään widget ottamaan koko alaosan leveys mobiilissa */
+    .info-widget {
+        left: 0;
+        transform: none;
+        max-width: 100%;
+        max-height: 50px; /* Suljettuna vain otsikkopalkki näkyy */
+    }
+
+    /* Laajennettu tila kun otsikkoa klikataan mobiilissa */
+    .info-widget.expanded {
+        max-height: 40vh;
+    }
+
+    .widget-handle {
+        cursor: pointer; /* Mobiilissa osoitetaan, että tätä voi klikata auki */
+        position: relative;
+    }
+
+    /* Pieni visuaalinen nuoli-indikaattori mobiiliwidgetiin */
+    .widget-handle::after {
+        content: '▲';
+        position: absolute;
+        right: 15px;
+        font-size: 11px;
+        transition: transform 0.3s ease;
+    }
+
+    .info-widget.expanded .widget-handle::after {
+        transform: rotate(180deg);
+    }
 }
 
+/* ==========================================================================
+   9. GPS SIJAINTIPALLO LAITTEISTOKIIHDYTYKSELLÄ (Mobiiliystävällinen)
+   ========================================================================== */
 .gps-pulse-wrapper {
     position: relative !important;
     width: 24px !important;
     height: 24px !important;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
 }
 
 .gps-pulse-core {
@@ -443,23 +415,19 @@ body {
     background-color: rgba(0, 123, 255, 0.4);
     border: 1px solid rgba(0, 123, 255, 0.6);
     border-radius: 50%;
-    animation: gpsPulseAnimation 2s infinite ease-out !important;
+    /* Pakotetaan 3D-raudankorjaus (GPU) jotta pyörii tasaisesti mobiililla */
+    will-change: transform, opacity;
+    animation: gpsPulseAnimationMobile 2s infinite ease-out !important;
     z-index: 1;
 }
 
-@keyframes gpsPulseAnimation {
+@keyframes gpsPulseAnimationMobile {
     0% {
-        transform: scale(0.3);
+        transform: translate3d(0, 0, 0) scale(0.3);
         opacity: 1;
     }
     100% {
-        transform: scale(2.2);
+        transform: translate3d(0, 0, 0) scale(2.2);
         opacity: 0;
     }
-}
-
-@keyframes pulse {
-    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 123, 196, 0.7); }
-    70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 123, 196, 0); }
-    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 123, 196, 0); }
 }
