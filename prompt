@@ -1,44 +1,44 @@
-Toimi senior-tason Full Stack- ja Web-kehittäjänä. Rakenna moderni, yhden tiedoston (Single-file) HTML5/CSS3/Vanilla JS -pohjainen reitityssovellus, joka hyödyntää Leaflet.js-karttakirjastoa ja OpenRouteService (ORS) -rajapintaa. 
+Toimi senior-tason Full Stack- ja Web-kehittäjänä. Rakenna moderni, HTML5/CSS3/Vanilla JS -pohjainen SPA-reitityssovellus (Single Page Application), joka hyödyntää Leaflet.js-karttakirjastoa ja OpenRouteService (ORS) -rajapintaa. 
 
 Toteuta sovellus seuraavien tarkkojen teknisten ja toiminnallisten vaatimusten mukaisesti:
 
-Tee projekti siistiksi, tuotantovalmiiksi ja modulaariseksi Vanilla JS -sovellukseksi, joka käyttää ES-moduuleita (import/export). 
+Tee projekti siistiksi, tuotantovalmiiksi ja modulaariseksi Vanilla JS -sovellukseksi, joka käyttää ES-moduuleita (import/export). 
 
-Suorita refaktorointi seuraavien ohjeiden mukaisesti:
+Suorita toteutus seuraavien ohjeiden mukaisesti:
 
 1. Jaa koodi seuraavaan tiedostorakenne-malliin:
-   - index.html (Vain puhdas HTML-rakenne ja Leaflet/skripti-linkitykset)
-   - css/style.css (Kaikki tyylit, muuttujat ja mediakyselyt)
-   - js/app.js (Sovelluksen pääalustus, globaali tila/state ja päätason Event Listenerit)
-   - js/api.js (API-kutsut, kuten Cloudflare Worker / OpenRouteService)
-   - js/map.js (Leaflet-kartan hallinta, markerit ja piirtologiikka)
-   - js/utils.js (Matemaattiset apufunktiot, kuten Douglas-Peucker -optimointi ja etäisyyslaskennat)
-   - js/gpx.js (GPX-import ja -export logiikka)
+   - index.html (Vain puhdas HTML-rakenne ja Leaflet/skripti-linkitykset)
+   - css/style.css (Kaikki tyylit, muuttujat ja mediakyselyt)
+   - js/app.js (Sovelluksen pääalustus, globaali tila/state ja päätason Event Listenerit)
+   - js/api.js (API-kutsut, kuten Cloudflare Worker / OpenRouteService)
+   - js/map.js (Leaflet-kartan hallinta, markerit ja piirtologiikka)
+   - js/utils.js (Matemaattiset apufunktiot, kuten Douglas-Peucker -optimointi ja etäisyyslaskennat)
+   - js/gpx.js (GPX-import ja -export logiikka)
+   - js/i18n.js (Lokalisointisanakirja ja käännösfunktiot)
 
 2. TEKNINEN TOTEUTUS:
-   - Käytä JavaScriptin moderneja ES-moduuleita (`import` ja `export`).
-   - index.html-tiedostossa JavaScript pitää ladata muodossa: <script type="module" src="js/app.js"></script>.
-   - Varmista, että globaalit muuttujat eivät pääse saastuttamaan scopia; välitä tarvittava data (kuten `map` tai reittipisteet) funktioiden argumentteina tai hallitse tilaa keskitetysti app.js-tiedostossa.
+   - Käytä JavaScriptin moderneja ES-moduuleita (`import` ja `export`).
+   - index.html-tiedostossa JavaScript pitää ladata muodossa: <script type="module" src="js/app.js"></script>.
+   - Varmista, että globaalit muuttujat eivät pääse saastuttamaan scopia; välitä tarvittava data (kuten `map` tai reittipisteet) funktioiden argumentteina tai hallitse tilaa keskitetysti app.js-tiedostossa.
 
 3. TULOSTUSMUOTO:
-   - Tulosta jokaisen tiedoston koodi KOKONAISUUDESSAAN. Älä käytä placeholder-kommentteja kuten "// ... loppu koodi tähän ..." tai "// sama kuin ennen". Jokaisen tiedoston on oltava valmis kopioitavaksi suoraan käyttöön.
-   - Esitä tiedostot selkeissä koodibokeissa, joiden yläpuolella lukee tiedostopolku (esim. "js/utils.js").
+   - Tulosta jokaisen tiedoston koodi KOKONAISUUDESSAAN. Älä käytä placeholder-kommentteja kuten "// ... loppu koodi tähän ..." tai "// sama kuin ennen". Jokaisen tiedoston on oltava valmis kopioitavaksi suoraan käyttöön.
+   - Esitä tiedostot selkeissä koodibokeissa, joiden yläpuolella lukee tiedostopolku (esim. "js/utils.js").
 
 4. ARKKITEHTUURI JA API-YHTEYS
 - Sovellus tekee reitityspyynnöt taustajärjestelmään, joka sijaitsee osoitteessa: WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/' (tähän on tallennettu ORS_API_KEY salattuna Cloudflare Workeriin).
+- Pyynnöt käyttävät OpenRouteServicen standardia autoprofiilia (`driving-car`) ilman ylimääräisiä rajoituslohkoja (options).
 - Tee käynnistyksessä GET-pyyntö WORKER_URL-osoitteeseen backendin tilan tarkistamiseksi. Jos pyyntö epäonnistuu, aseta sovellus katselutilaan (Read-Only) ja näytä infopalkissa teksti "Vain katselutila käytössä". Muussa tapauksessa piilota tämä ilmoitus.
-- Toteuta dynaamisen kielen lokalisoinnin (i18n) modulaariseen reitityssovellukseeni selaimen asetusten perusteella ilman raskaita ulkoisia kirjastoja tai frameworkeja.
+- Toteuta dynaamisen kielen lokalisointi (i18n) modulaariseen reitityssovellukseen selaimen asetusten perusteella ilman raskaita ulkoisia kirjastoja tai frameworkeja.
 
 Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
-
-4.1. ARKKITEHTUURI (ES-moduulit): Luo sovellukseen täysin oma moduuli tiedostopolkuun `js/i18n.js`. Tämän tiedoston tulee sisältää käännössanakirja-objekti ja exportata dynaaminen `t(key)`-apufunktio sekä tieto aktiivisesta kielestä.
+4.1. ARKKITEHTUURI (ES-moduulit): Tiedoston `js/i18n.js` tulee sisältää käännössanakirja-objekti ja exportata dynaaminen `t(key, variables)`-apufunktio sekä tieto aktiivisesta kielestä.
 4.2. KIELEN TUNNISTUS JA FALLBACK: Tunnista käyttäjän kieli hyödyntäen `navigator.language`-rajapintaa. Jos ensisijainen kielikoodi on 'fi' (suomi), aktivoi suomen kieli. Kaikissa muissa tapauksissa käytä automaattisesti 'en' (englanti) fallback-kielenä.
 4.3. PUHDAS HTML: Arkkitehtuurin tulee tehdä index.html-tiedostosta täysin kielivapaa raami. Kaikki käyttöliittymän tekstit, painikkeet, ohjeet, input-labelit, modaalit ja dynaamisesti luotavat elementit (kuten reittien nimet) on käännettävä ohjelmallisesti JavaScriptin kautta.
 4.4. TILAN HALLINTA: Älä tallenna kielitilaa globaaleihin window-muuttujiin. Käytä sen sijaan tiukkoja moduulisidoksia ja importtaa ne puhtaasti tiedostoihin `js/app.js` ja `js/map.js`.
 
 5. REITITYSLOGIIKKA JA REITTIPUUTTEET
 - Lisää lähtöpisteen osoitekenttä (textbox) ja käytä OpenStreetMap Nominatim API-rajapintaa hakemaan osoitetta samalla kuin kenttään kirjoitetaan. Aseta osoite seuraavaksi reittipisteeksi karttapohjalle ja pidä zoom-taso ennallaan.
-- Lisää käyttöliittymään valintaruutu (checkbox) moottoriteiden välttämiselle (ORS: avoid_features: ["highway"]).
 - Karttaa klikkaamalla lisätään uusia reittipisteitä (waypoint). Reititä pisteiden välit lennossa ORS-rajapinnan kautta. Optimoi reitin geometria Douglas-Peucker-yksinkertaistuksella.
 - Näytä aktiivisten urien kokonaispituus selkeästi kilometreinä (laskettu haetusta geometriasta).
 
@@ -72,6 +72,6 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 
 11. KÄYTTÖLIITTYMÄN ASENTELU JA ULKOASU
 - Otsikoi sivu ja sidebar tekstillä "Reittisuunnittelu".
-- Vasempaan yläkulmaan tulee hampurilaispainike (kolme vaakaviivaa). Sen takaa aukeaa tyylikäs sivupalkki (Sidebar), joka sisältää: asetukset (moottoritie-checkbox), GPX-tuontipainikkeen, "Yhdistä urat" -painikkeen (näkyvissä vain jos uria on >= 2), "Lataa GPX" -painike (näkyvissä vain jos reittejä on) sekä "Tyhjennä kaikki" -painikkeen.
+- Vasempaan yläkulmaan tulee hampurilaispainike (kolme vaakaviivaa). Sen takaa aukeaa tyylikäs sivupalkki (Sidebar), joka sisältää osoitehaun, GPX-tuontipainikkeen, "Yhdistä urat" -painikkeen (näkyvissä vain jos uria on >= 2), "Lataa GPX" -painikkeen (näkyvissä vain jos reittejä on) sekä "Tyhjennä kaikki" -painikkeen.
 - Kirjoita koodi modulaarisesti siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille.
 

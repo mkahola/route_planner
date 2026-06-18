@@ -12,7 +12,6 @@ import {
 
 const globalState = {
     readOnlyMode: false,
-    avoidHighways: false,
     tracks: [] 
 };
 
@@ -28,8 +27,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!isBackendAlive) {
         globalState.readOnlyMode = true;
         const bar = document.getElementById('info-bar');
-        bar.textContent = t('readOnlyMode');
-        bar.classList.remove('hidden');
+        if (bar) {
+            bar.textContent = t('readOnlyMode');
+            bar.classList.remove('hidden');
+        }
     }
 
     mapInstance = initializeLeafletMapInstance('map', globalState, handleWaypointPositionReRouting, promptWaypointDeletionModal);
@@ -64,17 +65,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function translateDOM() {
-    document.getElementById('sidebar-title').textContent = t('sidebarTitle');
-    document.getElementById('search-label').textContent = t('searchLabel');
-    document.getElementById('label-avoid-highways').textContent = t('labelAvoidHighways');
-    document.getElementById('btn-gpx-import-trigger').textContent = t('btnGpxImport');
-    document.getElementById('btn-merge-tracks').textContent = t('btnMergeTracks');
-    document.getElementById('btn-gpx-export').textContent = t('btnGpxExport');
-    document.getElementById('btn-clear-all').textContent = t('btnClearAll');
-    document.getElementById('widget-title').textContent = t('widgetTitle');
-    document.getElementById('modal-btn-yes').textContent = t('btnYes');
-    document.getElementById('modal-btn-no').textContent = t('btnNo');
-    document.getElementById('address-search').placeholder = t('searchPlaceholder');
+    const el = (id) => document.getElementById(id);
+    if (el('sidebar-title')) el('sidebar-title').textContent = t('sidebarTitle');
+    if (el('search-label')) el('search-label').textContent = t('searchLabel');
+    if (el('btn-gpx-import-trigger')) el('btn-gpx-import-trigger').textContent = t('btnGpxImport');
+    if (el('btn-merge-tracks')) el('btn-merge-tracks').textContent = t('btnMergeTracks');
+    if (el('btn-gpx-export')) el('btn-gpx-export').textContent = t('btnGpxExport');
+    if (el('btn-clear-all')) el('btn-clear-all').textContent = t('btnClearAll');
+    if (el('widget-title')) el('widget-title').textContent = t('widgetTitle');
+    if (el('modal-btn-yes')) el('modal-btn-yes').textContent = t('btnYes');
+    if (el('modal-btn-no')) el('modal-btn-no').textContent = t('btnNo');
+    if (el('address-search')) el('address-search').placeholder = t('searchPlaceholder');
 }
 
 function setupApplicationUIEventListeners() {
@@ -82,72 +83,83 @@ function setupApplicationUIEventListeners() {
     const ol = document.getElementById('sidebar-overlay');
     const toggle = document.getElementById('menu-toggle');
     
-    const toggleSb = () => { sb.classList.toggle('open'); ol.classList.toggle('open'); };
-    toggle.addEventListener('click', toggleSb);
-    ol.addEventListener('click', toggleSb);
-    L.DomEvent.disableClickPropagation(toggle);
-
-    document.getElementById('avoid-highways').addEventListener('change', (e) => {
-        globalState.avoidHighways = e.target.checked;
-        globalState.tracks.forEach(track => {
-            if (!track.isImportedGPX) {
-                computeTrackRoutingPathIntersection(track);
-            }
-        });
-    });
+    if (toggle && sb && ol) {
+        const toggleSb = () => { sb.classList.toggle('open'); ol.classList.toggle('open'); };
+        toggle.addEventListener('click', toggleSb);
+        ol.addEventListener('click', toggleSb);
+        L.DomEvent.disableClickPropagation(toggle);
+    }
 
     const widget = document.getElementById('info-widget');
-    widget.querySelector('.widget-handle').addEventListener('click', () => {
-        if (window.innerWidth <= 768) {
-            widget.classList.toggle('expanded');
+    if (widget) {
+        const handle = widget.querySelector('.widget-handle');
+        if (handle) {
+            handle.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    widget.classList.toggle('expanded');
+                }
+            });
         }
-    });
-    L.DomEvent.disableClickPropagation(widget);
-    L.DomEvent.disableScrollPropagation(widget);
+        L.DomEvent.disableClickPropagation(widget);
+        L.DomEvent.disableScrollPropagation(widget);
+    }
 
-    document.getElementById('btn-gpx-import-trigger').addEventListener('click', () => {
-        document.getElementById('btn-gpx-import').click();
-    });
+    const btnGpxTrigger = document.getElementById('btn-gpx-import-trigger');
+    const btnGpxInput = document.getElementById('btn-gpx-import');
+    if (btnGpxTrigger && btnGpxInput) {
+        btnGpxTrigger.addEventListener('click', () => btnGpxInput.click());
+        btnGpxInput.addEventListener('change', handleBulkGPXImporting);
+    }
 
-    document.getElementById('btn-gpx-import').addEventListener('change', handleBulkGPXImporting);
+    const btnMerge = document.getElementById('btn-merge-tracks');
+    if (btnMerge) btnMerge.addEventListener('click', executeGlobalTracksMergingSequence);
 
-    document.getElementById('btn-merge-tracks').addEventListener('click', executeGlobalTracksMergingSequence);
-    document.getElementById('btn-gpx-export').addEventListener('click', () => exportTracksToGPXFile(globalState.tracks));
+    const btnExport = document.getElementById('btn-gpx-export');
+    if (btnExport) btnExport.addEventListener('click', () => exportTracksToGPXFile(globalState.tracks));
     
-    // Korjattu elementin ID muotoon 'btn-clear-all'
-    document.getElementById('btn-clear-all').addEventListener('click', () => {
-        globalState.tracks = [];
-        updateBottomWidgetTracklistUI();
-        renderAllMapLayersAndTracks();
-        evaluateVisibilityOfDynamicButtons();
-    });
+    const btnClear = document.getElementById('btn-clear-all');
+    if (btnClear) {
+        btnClear.addEventListener('click', () => {
+            globalState.tracks = [];
+            updateBottomWidgetTracklistUI();
+            renderAllMapLayersAndTracks();
+            evaluateVisibilityOfDynamicButtons();
+        });
+    }
 
-    document.getElementById('modal-btn-no').addEventListener('click', () => {
-        document.getElementById('confirm-modal').classList.add('hidden');
-        activeModalTarget = null;
-    });
+    const btnNo = document.getElementById('modal-btn-no');
+    if (btnNo) {
+        btnNo.addEventListener('click', () => {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            activeModalTarget = null;
+        });
+    }
 
-    document.getElementById('modal-btn-yes').addEventListener('click', executeConfirmedWaypointDeletion);
+    const btnYes = document.getElementById('modal-btn-yes');
+    if (btnYes) btnYes.addEventListener('click', executeConfirmedWaypointDeletion);
 
     const searchInput = document.getElementById('address-search');
-    searchInput.addEventListener('input', (e) => {
-        clearTimeout(geocodeDebounceTimeout);
-        const query = e.target.value.trim();
-        if (query.length < 3) {
-            document.getElementById('search-results').classList.add('hidden');
-            return;
-        }
-        geocodeDebounceTimeout = setTimeout(async () => {
-            const results = await searchAddressGeocode(query);
-            renderGeocodingResultsBox(results);
-        }, 400);
-    });
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(geocodeDebounceTimeout);
+            const query = e.target.value.trim();
+            if (query.length < 3) {
+                document.getElementById('search-results').classList.add('hidden');
+                return;
+            }
+            geocodeDebounceTimeout = setTimeout(async () => {
+                const results = await searchAddressGeocode(query);
+                renderGeocodingResultsBox(results);
+            }, 400);
+        });
+    }
 }
 
 function renderGeocodingResultsBox(results) {
     const container = document.getElementById('search-results');
+    if (!container) return;
     container.innerHTML = '';
-    if (results.length === 0) {
+    if (!results || results.length === 0) {
         container.classList.add('hidden');
         return;
     }
@@ -173,14 +185,15 @@ function renderGeocodingResultsBox(results) {
             mapInstance.setView(latlng, mapInstance.getZoom());
 
             container.classList.add('hidden');
-            document.getElementById('address-search').value = '';
+            const inp = document.getElementById('address-search');
+            if (inp) inp.value = '';
         });
         container.appendChild(div);
     });
 }
 
 async function computeTrackRoutingPathIntersection(track) {
-    if (track.waypoints.length === 0) {
+    if (!track || track.waypoints.length === 0) {
         track.routeGeometry = [];
         finalizeTrackRefreshSequence();
         return;
@@ -192,15 +205,22 @@ async function computeTrackRoutingPathIntersection(track) {
         return;
     }
 
-    const coords = track.waypoints.map(w => [w.getLatLng().lng, w.getLatLng().lat]);
-    const geoData = await fetchORSRoute(coords, globalState.avoidHighways);
+    try {
+        const coords = track.waypoints.map(w => [w.getLatLng().lng, w.getLatLng().lat]);
+        const geoData = await fetchORSRoute(coords);
 
-    if (geoData && geoData.features && geoData.features.length > 0) {
-        let rawCoords = geoData.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        track.routeGeometry = simplifyPointsDouglasPeucker(rawCoords, 0.0001);
-    } else {
+        if (geoData && geoData.features && geoData.features.length > 0) {
+            let rawCoords = geoData.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+            track.routeGeometry = simplifyPointsDouglasPeucker(rawCoords, 0.0001);
+        } else {
+            // Varma fallback: jos API ei vastaa tai epäonnistuu, piirretään suora viiva pisteiden välille
+            track.routeGeometry = track.waypoints.map(w => [w.getLatLng().lat, w.getLatLng().lng]);
+        }
+    } catch (err) {
+        console.error("Virhe reitin laskennassa, käytetään suoria viivoja:", err);
         track.routeGeometry = track.waypoints.map(w => [w.getLatLng().lat, w.getLatLng().lng]);
     }
+    
     finalizeTrackRefreshSequence();
 }
 
@@ -214,32 +234,44 @@ function evaluateVisibilityOfDynamicButtons() {
     const mergeBtn = document.getElementById('btn-merge-tracks');
     const exportBtn = document.getElementById('btn-gpx-export');
 
-    if (globalState.tracks.length >= 2) mergeBtn.classList.remove('hidden');
-    else mergeBtn.classList.add('hidden');
+    if (mergeBtn) {
+        if (globalState.tracks.length >= 2) mergeBtn.classList.remove('hidden');
+        else mergeBtn.classList.add('hidden');
+    }
 
-    if (globalState.tracks.some(t => t.routeGeometry.length > 0)) exportBtn.classList.remove('hidden');
-    else exportBtn.classList.add('hidden');
+    if (exportBtn) {
+        if (globalState.tracks.some(t => t.routeGeometry && t.routeGeometry.length > 0)) exportBtn.classList.remove('hidden');
+        else exportBtn.classList.add('hidden');
+    }
 }
 
 function handleWaypointPositionReRouting(trackIndex, wpIndex, newLatLng) {
-    const track = globalState.tracks[trackIndex];
-    track.waypoints[wpIndex].setLatLng(newLatLng);
-    computeTrackRoutingPathIntersection(track);
+    if (globalState.tracks[trackIndex]) {
+        const track = globalState.tracks[trackIndex];
+        if (track.waypoints[wpIndex]) {
+            track.waypoints[wpIndex].setLatLng(newLatLng);
+            computeTrackRoutingPathIntersection(track);
+        }
+    }
 }
 
 function promptWaypointDeletionModal(trackIndex, wpIndex) {
     if (globalState.readOnlyMode) return;
     activeModalTarget = { trackIndex, wpIndex };
-    document.getElementById('modal-text').textContent = t('confirmDeletePoint');
-    document.getElementById('confirm-modal').classList.remove('hidden');
+    const txt = document.getElementById('modal-text');
+    if (txt) txt.textContent = t('confirmDeletePoint');
+    const modal = document.getElementById('confirm-modal');
+    if (modal) modal.classList.remove('hidden');
 }
 
 async function executeConfirmedWaypointDeletion() {
-    document.getElementById('confirm-modal').classList.add('hidden');
+    const modal = document.getElementById('confirm-modal');
+    if (modal) modal.classList.add('hidden');
     if (!activeModalTarget) return;
 
     const { trackIndex, wpIndex } = activeModalTarget;
     const track = globalState.tracks[trackIndex];
+    if (!track) return;
 
     if (track.isImportedGPX && (wpIndex === 0 || wpIndex === track.waypoints.length - 1)) {
         if (wpIndex === 0) {
@@ -305,11 +337,14 @@ async function executeGlobalTracksMergingSequence() {
             const nextWp = currentTrack.waypoints[0].getLatLng();
             
             const gapCoords = [[lastWp.lng, lastWp.lat], [nextWp.lng, nextWp.lat]];
-            const gapGeoData = await fetchORSRoute(gapCoords, globalState.avoidHighways);
-            
-            if (gapGeoData && gapGeoData.features && gapGeoData.features.length > 0) {
-                const intermediatePoints = gapGeoData.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                mergedGeometry.push(...intermediatePoints);
+            try {
+                const gapGeoData = await fetchORSRoute(gapCoords);
+                if (gapGeoData && gapGeoData.features && gapGeoData.features.length > 0) {
+                    const intermediatePoints = gapGeoData.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                    mergedGeometry.push(...intermediatePoints);
+                }
+            } catch (err) {
+                console.log("Kuilun reititys urien välillä epäonnistui, yhdistetään suoralla.");
             }
         }
 
@@ -329,6 +364,7 @@ async function executeGlobalTracksMergingSequence() {
 function updateBottomWidgetTracklistUI() {
     const statsContainer = document.getElementById('route-stats');
     const listContainer = document.getElementById('route-list');
+    if (!listContainer || !statsContainer) return;
     listContainer.innerHTML = '';
 
     if (globalState.tracks.length === 0) {
