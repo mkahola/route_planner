@@ -118,8 +118,8 @@ function handleDynamicWaypointPruning(globalState) {
     globalState.tracks.forEach((track) => {
         const totalWps = track.waypoints.length;
         
-        let maxVisibleMarkers = 10; // Kaukana: Max 6-10 markeria näkyvissä dynaamisesti
-        if (currentZoom >= 16) maxVisibleMarkers = 40; // Lähellä: Jopa 40 markerikarsinta tuettu
+        let maxVisibleMarkers = 10; // Kaukana: Max 6-10 markeria dynaamisesti
+        if (currentZoom >= 16) maxVisibleMarkers = 40; // Lähellä: jopa 40 markerikarsinta tuettu tarkkaan editointiin
         else if (currentZoom >= 12) maxVisibleMarkers = 20;
 
         const skipFactor = Math.ceil(totalWps / maxVisibleMarkers);
@@ -136,7 +136,7 @@ function handleDynamicWaypointPruning(globalState) {
             }
 
             const isEdgePoint = (wpIdx === 0 || wpIdx === totalWps - 1);
-            // Säännönmukaisesti vaatimus: Näytä aina vähintään yksi piste näkymän ulkopuolelta ennen alkua / lopun jälkeen
+            // Säännönmukaisesti vaatimus: Näytä aina vähintään yksi piste näkymän ulkopuolelta ennen alkua ja lopun jälkeen
             const isBufferPoint = (wpIdx === 1 || wpIdx === totalWps - 2);
             const isSampled = (wpIdx % skipFactor === 0);
             const isInBounds = bounds.contains(wp.getLatLng());

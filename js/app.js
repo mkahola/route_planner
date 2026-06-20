@@ -13,7 +13,8 @@ import {
 const globalState = {
     readOnlyMode: false,
     tracks: [],
-    lastActionWasImport: false 
+    lastActionWasImport: false,
+    lastActionWasMerge: false // Valmius ERITYISSÄÄNNÖLLE 3
 };
 
 let mapInstance = null;
@@ -42,11 +43,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         let targetTrackIndex = globalState.tracks.length - 1;
         
-        // ERITYISSÄÄNTÖ 2: Jos edellinen toiminto oli GPX-import, klikkaus aloittaa kokonaan uuden itsenäisen reitin
-        if (globalState.tracks.length === 0 || globalState.lastActionWasImport) {
+        // ERITYISSÄÄNTÖ 2 & ERITYISSÄÄNTÖ 3:
+        // Jos edellinen toiminto oli GPX-import TAI urien yhdistäminen ("lastActionWasMerge"),
+        // seuraava klikkaus kartalle luo kokonaan uuden, itsenäisen reitin (aloituspisteen).
+        if (globalState.tracks.length === 0 || globalState.lastActionWasImport || globalState.lastActionWasMerge) {
             globalState.tracks.push({ waypoints: [], routeGeometry: [], isImportedGPX: false });
             targetTrackIndex = globalState.tracks.length - 1;
             globalState.lastActionWasImport = false; 
+            globalState.lastActionWasMerge = false;
         }
 
         const currentTrack = globalState.tracks[targetTrackIndex];
@@ -127,6 +131,7 @@ function setupApplicationUIEventListeners() {
             });
             globalState.tracks = [];
             globalState.lastActionWasImport = false;
+            globalState.lastActionWasMerge = false;
             finalizeTrackRefreshSequence();
         });
     }
@@ -172,10 +177,11 @@ function renderGeocodingResultsBox(results) {
             const lon = parseFloat(res.lon);
             
             let targetTrackIndex = globalState.tracks.length - 1;
-            if (globalState.tracks.length === 0 || globalState.lastActionWasImport) {
+            if (globalState.tracks.length === 0 || globalState.lastActionWasImport || globalState.lastActionWasMerge) {
                 globalState.tracks.push({ waypoints: [], routeGeometry: [], isImportedGPX: false });
                 targetTrackIndex = globalState.tracks.length - 1;
                 globalState.lastActionWasImport = false;
+                globalState.lastActionWasMerge = false;
             }
 
             const latlng = L.latLng(lat, lon);
@@ -274,7 +280,7 @@ async function executeConfirmedWaypointDeletion() {
 
     const isEdgePointDeletion = (wpIndex === 0 || wpIndex === track.waypoints.length - 1);
     
-    // ERITYISSÄÄNTÖ 1: Jos tuodun reitin alku- tai loppupiste poistetaan, ei reititetä koko uraa uusiksi vaan karsitaan vain sen pääty segmentistä
+    // ERITYISSÄÄNTÖ 1: Jos tuodun reitin alku- tai loppupiste poistetaan, ei reititetä koko uraa uusiksi vaan poistetaan vain sen segmentti
     if (track.isImportedGPX && isEdgePointDeletion) {
         if (mapInstance.hasLayer(track.waypoints[wpIndex])) {
             mapInstance.removeLayer(track.waypoints[wpIndex]);
@@ -323,6 +329,7 @@ function handleBulkGPXImporting(e) {
 
             globalState.tracks.push({ waypoints: wps, routeGeometry: rawCoords, isImportedGPX: true });
             globalState.lastActionWasImport = true; 
+            globalState.lastActionWasMerge = false;
             finalizeTrackRefreshSequence();
         };
         reader.readAsText(file);
@@ -339,7 +346,7 @@ async function executeGlobalTracksMergingSequence() {
     for (let i = 0; i < globalState.tracks.length; i++) {
         const currentTrack = globalState.tracks[i];
         
-        // Reititetään urien väliin jäävät aukot dynaamisesti lennossa teitä pitkin
+        // Reititetään urien väliin jäävät aukot dynaamisesti lennossa tieverkostoa pitkin
         if (mergedWaypoints.length > 0 && currentTrack.waypoints.length > 0) {
             const lastWp = mergedWaypoints[mergedWaypoints.length - 1].getLatLng();
             const nextWp = currentTrack.waypoints[0].getLatLng();
@@ -360,6 +367,7 @@ async function executeGlobalTracksMergingSequence() {
         mergedGeometry.push(...currentTrack.routeGeometry);
     }
 
+    // Alustetaan markerit uudestaan vastaamaan uutta keskitettyä indeksiä (0) raahauksia varten
     mergedWaypoints.forEach((wp, idx) => {
         wp.off('dragend');
         wp.on('dragend', () => handleWaypointPositionReRouting(0, idx, wp.getLatLng()));
@@ -367,6 +375,11 @@ async function executeGlobalTracksMergingSequence() {
 
     globalState.tracks = [{ waypoints: mergedWaypoints, routeGeometry: mergedGeometry, isImportedGPX: false }];
     globalState.lastActionWasImport = false;
+    
+    // ERITYISSÄÄNTÖ 3: Kun reitit on yhdistetty, asetetaan lippu 'lastActionWasMerge = true'.
+    // Tällöin seuraava karttaklikkaus tulkitaan täysin uuden itsenäisen uran aloitukseksi.
+    globalState.lastActionWasMerge = true;
+    
     finalizeTrackRefreshSequence();
 }
 

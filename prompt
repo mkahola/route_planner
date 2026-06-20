@@ -46,6 +46,7 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 - Salli useiden GPX-tiedostojen tuonti samanaikaisesti. Muunna tuodut jäljet muokattaviksi reittipisteiksi (karsi raaka jälki sopivaan määrään editointipisteitä).
 - ERITYISSÄÄNTÖ 1: Jos reitin alku- tai loppupiste poistetaan, älä reititä koko uraa uusiksi, vaan poista vain jälki kyseisestä pisteestä seuraavaan/edelliseen reittipisteeseen.
 - ERITYISSÄÄNTÖ 2: Jos tuodun GPX-jäljen jälkeen käyttäjä klikkaa karttaa lisätäkseen uuden reittipisteen, käsittele tätä klikkausta kokonaan uuden reitin aloituspisteenä (älä jatka vanhaa tuotua uraa).
+- ERITYISSÄÄNTO 3: Jos reittipiste ja yksi tai useampi tuotu gpx-jälki on jo yhdistetty yhdeksi jäljeksi, käsittele seuraavaa karttapohjalle klikattua pistettä kokonaan uutena reittinä, jos ja kun reitit taas yhdistetään yhdeksi reitiksi klikkaamalla "yhdistä urat" -painiketta. 
 - Lisää toiminto kahden tai useamman kartalla olevan itsenäisen uran yhdistämiseksi yhdeksi yhtenäiseksi reitiksi, reitittäen urien väliin jäävät aukot automaattisesti.
 
 7. DYNAAMINEN REITTIPISTEIDEN KARSINTA JA ZOOM-AUTOMATIIKKA
@@ -56,7 +57,7 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 - Jos reittipistettä klikataan, kysy varmistus erillisessä modaali-ikkunassa: "Poistetaanko piste?". Jos vastaus on kyllä, poista piste ja reititä väli uudelleen.
 
 8. GEOLOKAATIO
-- Jos laitteen GPS- tai WiFi-sijainti on saatavilla, keskitä kartta automaattisesti käyttäjän kohdalle ja piirrä siihen sykkivä sininen sijaintipallo.
+- Jos laitteen GPS- tai WiFi-sijainti on saatavilla, keskitä kartta automaattisesti käyttäjän kohdalle ja piirrä siihen sykkivä sgininen sijaintipallo.
 
 9. MOBIILIYSTÄVÄLLINEN "BOTTOM SHEET" -WIDGET & LEAFLET-INTEGRAATIO
 - Luo näytön alareunaan kiinnitetty "Bottom Sheet" -widget käyttäen pääkonttia `#info-widget`.
@@ -72,8 +73,9 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 
 11. KÄYTTÖLIITTYMÄN ASENTELU JA ULKOASU
 - Otsikoi sivu "Reittisuunnittelu" ja lokalisoi otsikko englanniksi "Route planner", jos englanti on valittu kieleksi.
-- Vasempaan yläkulmaan tulee hampurilaispainike (kolme vaakaviivaa). Sen takaa aukeaa tyylikäs sivupalkki (Sidebar), joka sisältää osoitehaun, GPX-tuontipainikkeen, "Yhdistä urat" -painikkeen (näkyvissä vain jos uria on >= 2), "Lataa GPX" -painikkeen (näkyvissä vain jos reittejä on) sekä "Tyhjennä kaikki" -painikkeen.
+- Otsikoi sidebar otsikko "Reitin suunnittelu" ja lokalisoi otsikko englanniksi "Plan a route", jos englanti on valittu kieleksi.
+- Vasempaan yläkulmaan tulee hampurilaispainike (kolme vaakaviivaa). Sen takaa aukeaa tyylikäs sivupalkki (Sidebar), joka sisältää osoitehaun, GPX-tuontipainikkeen, "Yhdistä urat" -painikkeen (näkyvissä vain jos uria on >= 2), "Lataa GPX" -painikkeen (näkyvissä vain jos reittejä on) sekä "Tyhjennä kaikki" -painikkeen. Pidä valikko tiiviinä ja rajoita pituus korkeintaan puolen sivun mittaiseksi
 - Oikeaan yläkulmaan tulee OpenStreetMapin zoom-painikkeet (+ ja - alekkain)
-- Optimoi sivu mobiiliversiota varten.
+- Optimoi sivu mobiiliversiota varten.s
 - Kirjoita koodi modulaarisesti siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille. Rakenna setup.sh tiedosto Linux-käyttöjärjestelmälle helppoa asennusta varten.
 
