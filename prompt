@@ -71,7 +71,9 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 - Lisää painike GPX-jäljen lataamiseksi paikallisesti laitteen Downloads-hakemistoon.
 
 11. KÄYTTÖLIITTYMÄN ASENTELU JA ULKOASU
-- Otsikoi sivu ja sidebar tekstillä "Reittisuunnittelu".
+- Otsikoi sivu "Reittisuunnittelu" ja lokalisoi otsikko englanniksi "Route planner", jos englanti on valittu kieleksi.
 - Vasempaan yläkulmaan tulee hampurilaispainike (kolme vaakaviivaa). Sen takaa aukeaa tyylikäs sivupalkki (Sidebar), joka sisältää osoitehaun, GPX-tuontipainikkeen, "Yhdistä urat" -painikkeen (näkyvissä vain jos uria on >= 2), "Lataa GPX" -painikkeen (näkyvissä vain jos reittejä on) sekä "Tyhjennä kaikki" -painikkeen.
-- Kirjoita koodi modulaarisesti siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille.
+- Oikeaan yläkulmaan tulee OpenStreetMapin zoom-painikkeet (+ ja - alekkain)
+- Optimoi sivu mobiiliversiota varten.
+- Kirjoita koodi modulaarisesti siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille. Rakenna setup.sh tiedosto Linux-käyttöjärjestelmälle helppoa asennusta varten.
 

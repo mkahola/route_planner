@@ -1,9 +1,11 @@
+import { activeLang } from './i18n.js';
+
 let map = null;
-let locationMarker = null;
-let trackPolylines = [];
+let locationMarker = null; 
+let trackPolylines = [];   
 
 export function initializeLeafletMapInstance(elementId, globalState, onReRoute, onDeletePrompt) {
-    // Alustetaan kartta ja otetaan oletuszoom-painikkeet pois käytöstä (zoomControl: false)
+    // Alustetaan karttainstanssi ilman oletuszoom-painikkeita
     map = L.map(elementId, {
         zoomControl: false
     }).setView([64.9146, 26.0672], 5);
@@ -12,30 +14,26 @@ export function initializeLeafletMapInstance(elementId, globalState, onReRoute, 
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // LISÄTTY: Luodaan uusi zoom-valikko ja pakotetaan se oikeaan yläkulmaan ('topright')
+    // Pakotetaan Zoom-kontrolli puhtaasti oikeaan yläkulmaan
     L.control.zoom({
         position: 'topright'
     }).addTo(map);
 
-    // Kuunnellaan kartan liikuttelua dynaamista karsintaa varten
+    // Kuunnellaan karttanäkymän siirtoja dynaamista karsintaa varten
     map.on('moveend zoomend', () => {
         handleDynamicWaypointPruning(globalState);
     });
 
-    // Tallennetaan reitityksen takaisinkutsut karttaobjektiin
     map._onReRoute = onReRoute;
     map._onDeletePrompt = onDeletePrompt;
 
     return map;
 }
 
-// Piirretään tai päivitetään GPS-sijaintipallo kartalle
 export function renderGPXLocationPulseMarker(lat, lon) {
     if (!map) return;
-
     const latlng = L.latLng(lat, lon);
 
-    // Keskipisteeseen [12, 12] ankkuroidun divIconin avulla pallo pysyy paikoillaan zoomatessa
     const pulseIcon = L.divIcon({
         className: 'gps-pulse-wrapper',
         html: '<div class="gps-pulse-ring"></div><div class="gps-pulse-core"></div>',
@@ -47,19 +45,17 @@ export function renderGPXLocationPulseMarker(lat, lon) {
         locationMarker.setLatLng(latlng);
     } else {
         locationMarker = L.marker(latlng, { icon: pulseIcon }).addTo(map);
-        map.setView(latlng, 14); // Keskitetään kartta käyttäjään vain ensimmäisellä kerralla
+        map.setView(latlng, 14);
     }
 }
 
-// Tyhjennetään vanhat viivat ja piirretään kaikki urat sekä niiden geometriat uudestaan
 export function renderAllMapLayersAndTracks(globalState) {
     if (!map || !globalState) return;
 
-    // Puhdistetaan vanhat reittiviivat kartalta
+    // Tyhjennetään olemassa olevat piirretyt viivat
     trackPolylines.forEach(polyline => map.removeLayer(polyline));
     trackPolylines = [];
 
-    // Piirretään urat
     globalState.tracks.forEach((track, trackIdx) => {
         if (track.routeGeometry && track.routeGeometry.length > 0) {
             const polyline = L.polyline(track.routeGeometry, {
@@ -71,11 +67,11 @@ export function renderAllMapLayersAndTracks(globalState) {
             trackPolylines.push(polyline);
         }
 
-        // Päivitetään olemassa olevien markerien kuuntelijat vastaamaan vakautettua dragend-logiikkaa
+        // Sidotaan tapahtumat dynaamisesti oikeilla indekseillä varmistetusti dragend-tapahtumaan
         track.waypoints.forEach((wp, wpIdx) => {
             wp.off('drag');
             wp.off('dragend');
-            wp.on('dragend', (e) => {
+            wp.on('dragend', () => {
                 if (map._onReRoute) map._onReRoute(trackIdx, wpIdx, wp.getLatLng());
             });
             wp.off('click');
@@ -85,14 +81,11 @@ export function renderAllMapLayersAndTracks(globalState) {
         });
     });
 
-    // Ajetaan karsinta näkyvyyden päivittämiseksi
     handleDynamicWaypointPruning(globalState);
 }
 
-// Luodaan dynaaminen ja interaktiivinen reittipistemarkeri tarkalla ankkuroinnilla
 export function createInteractiveWaypointMarker(latlng, trackIndex, wpIndex) {
-    // Määritetään oletusmarkerille tarkat koot ja ankkuripisteet [12, 41]
-    // Tämä naulaa markerin alareunan kärjen kiinni tiehen, eikä se liiku zoomatessa
+    // Luodaan standardoitu, tarkennettu Leaflet-ikoni oikealla ankkuroinnilla [12, 41]
     const customIcon = L.icon({
         iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
@@ -107,11 +100,10 @@ export function createInteractiveWaypointMarker(latlng, trackIndex, wpIndex) {
         icon: customIcon
     });
     
-    // Ohitetaan dynaaminen piilottaminen klikkaushetkellä ennen kuin karttaa liikutetaan
+    // Ohitetaan dynaaminen karsinta luontihetkellä
     marker.isNewPoint = true; 
 
-    // Lasketaan reitti uusiksi vasta kun käyttäjä päästää markkerista irti (dragend)
-    marker.on('dragend', (e) => {
+    marker.on('dragend', () => {
         if (map._onReRoute) {
             map._onReRoute(trackIndex, wpIndex, marker.getLatLng());
         }
@@ -137,7 +129,6 @@ export function calculateTrackGeometryTotalDistance(routeGeometry) {
     return dist / 1000; 
 }
 
-// Dynaaminen markerien karsinta zoom-tason ja karttanäkymän (Bounds) mukaan
 function handleDynamicWaypointPruning(globalState) {
     if (!map || !globalState || !globalState.tracks) return;
     
@@ -155,7 +146,6 @@ function handleDynamicWaypointPruning(globalState) {
         const skipFactor = Math.ceil(totalWps / maxVisibleMarkers);
 
         track.waypoints.forEach((wp, wpIdx) => {
-            // Jos kyseessä on uusi piste, pakotetaan se näkyviin heti klikkauksesta
             if (wp.isNewPoint) {
                 if (!map.hasLayer(wp)) wp.addTo(map);
                 return;
@@ -166,11 +156,15 @@ function handleDynamicWaypointPruning(globalState) {
                 return;
             }
 
+            // SÄÄNTÖNMUKAISESTI: Näytetään aina reitin alku- ja loppupiste, 
+            // sekä vähintään yksi piste näkymän ulkopuolelta ennen alkua / jälkeen lopun.
             const isEdgePoint = (wpIdx === 0 || wpIdx === totalWps - 1);
+            const isBufferPoint = (wpIdx === 1 || wpIdx === totalWps - 2);
             const isSampled = (wpIdx % skipFactor === 0);
+            
             const isInBounds = bounds.contains(wp.getLatLng());
 
-            if ((isEdgePoint || isSampled) && isInBounds) {
+            if (isEdgePoint || isBufferPoint || (isSampled && isInBounds)) {
                 if (!map.hasLayer(wp)) wp.addTo(map);
             } else {
                 if (map.hasLayer(wp)) wp.remove(map);

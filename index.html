@@ -2,23 +2,29 @@
 <html lang="fi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Planner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reittisuunnittelu</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png" integrity="" crossorigin="" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
     <link rel="stylesheet" href="css/style.css">
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 
     <div id="info-bar" class="info-bar hidden"></div>
 
-    <main id="map-container">
-        <button id="menu-toggle" aria-label="Toggle Menu">
-            <span></span><span></span><span></span>
-        </button>
-        <div id="map"></div>
-    </main>
+    <button id="menu-toggle" aria-label="Toggle Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
 
-    <aside id="sidebar" class="sidebar">
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <nav id="sidebar" class="sidebar">
         <h2 id="sidebar-title"></h2>
         
         <div class="search-box">
@@ -26,21 +32,25 @@
             <input type="text" id="address-search" autocomplete="off">
             <div id="search-results" class="search-results hidden"></div>
         </div>
-
+        
         <div class="actions">
+            <input type="file" id="btn-gpx-import" multiple accept=".gpx" class="hidden">
             <button id="btn-gpx-import-trigger" class="btn btn-primary"></button>
-            <input type="file" id="btn-gpx-import" multiple accept=".gpx" style="display: none;">
-            <button id="btn-merge-tracks" class="btn btn-secondary hidden"></button>
-            <button id="btn-gpx-export" class="btn btn-success hidden"></button>
+            <button id="btn-merge-tracks" class="btn btn-success hidden"></button>
+            <button id="btn-gpx-export" class="btn btn-primary hidden"></button>
             <button id="btn-clear-all" class="btn btn-danger"></button>
         </div>
-    </aside>
-    
-    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+    </nav>
+
+    <main id="map-container">
+        <div id="map"></div>
+    </main>
 
     <section id="info-widget" class="info-widget">
-        <h3 id="widget-title" class="widget-handle"></h3>
-        <div id="route-list-container" class="route-list-container">
+        <div class="widget-handle">
+            <h3 id="widget-title"></h3>
+        </div>
+        <div class="route-list-container">
             <div id="route-stats" class="route-stats"></div>
             <ul id="route-list" class="route-list"></ul>
         </div>
@@ -56,7 +66,6 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>

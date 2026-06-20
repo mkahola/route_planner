@@ -1,6 +1,20 @@
 /* ==========================================================================
    1. GLOBAALIT TYYLIT & PERUSASETUKSET
    ========================================================================== */
+:root {
+    --primary-color: #007bff;
+    --primary-hover: #0056b3;
+    --success-color: #28a745;
+    --success-hover: #218838;
+    --danger-color: #dc3545;
+    --danger-hover: #bd2130;
+    --secondary-color: #6c757d;
+    --secondary-hover: #545b62;
+    --bg-light: #f8f9fa;
+    --border-color: #ced4da;
+    --text-dark: #333333;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -9,14 +23,14 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #f8f9fa;
-    color: #333333;
-    overflow: hidden; /* Estetään koko sivun skrollaus, kartta ja widgetit hoitavat oman alueensa */
+    background-color: var(--bg-light);
+    color: var(--text-dark);
+    overflow: hidden;
     width: 100vw;
     height: 100vh;
 }
 
-/* Infopalkki yläreunassa (esim. Read-only tila) */
+/* Infopalkki yläreunassa (Read-only tila) */
 .info-bar {
     position: fixed;
     top: 0;
@@ -33,7 +47,7 @@ body {
 }
 
 .info-bar.hidden {
-    display: none;
+    display: none !important;
 }
 
 /* ==========================================================================
@@ -55,7 +69,7 @@ body {
     justify-content: center;
     align-items: center;
     gap: 5px;
-    z-index: 1001; /* Korkeampi kuin Leafletin kontrollit (1000) */
+    z-index: 1001;
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
 }
 
@@ -67,14 +81,14 @@ body {
     display: block;
     width: 24px;
     height: 3px;
-    background-color: #333333;
+    background-color: var(--text-dark);
     border-radius: 2px;
     transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 /* Kun sivupalkki avataan, siirretään hampurilaispainike nätisti sen reunaan */
 .sidebar.open ~ #menu-toggle {
-    left: 315px; /* Sivupalkin leveys 300px + 15px marginaali */
+    left: 315px;
 }
 
 /* Animoidaan hampurilainen ristiksi kun valikko on auki */
@@ -89,19 +103,19 @@ body {
 }
 
 /* ==========================================================================
-   3. SIVUPALKKI (Sidebar) & GEOMUUNNOKSET
+   3. SIVUPALKKI (Sidebar)
    ========================================================================== */
 .sidebar {
     position: fixed;
     top: 0;
-    left: -300px; /* Piilossa oletuksena vasemmalla */
+    left: -300px;
     width: 300px;
     height: 100%;
     background-color: #ffffff;
     box-shadow: 2px 0 10px rgba(0,0,0,0.2);
     z-index: 1005;
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 80px 20px 20px 20px; /* Yläreunaan tilaa painikkeelle */
+    padding: 80px 20px 20px 20px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -111,7 +125,15 @@ body {
     left: 0;
 }
 
-/* Taustan peitto (Overlay) mobiilissa ja työpöydällä kun valikko on auki */
+.sidebar h2 {
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--text-dark);
+    border-bottom: 2px solid var(--bg-light);
+    padding-bottom: 10px;
+}
+
+/* Taustan peitto (Overlay) */
 .sidebar-overlay {
     position: fixed;
     top: 0;
@@ -147,14 +169,14 @@ body {
 .search-box input {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ced4da;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 14px;
     outline: none;
 }
 
 .search-box input:focus {
-    border-color: #007bff;
+    border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
 }
 
@@ -165,7 +187,7 @@ body {
     left: 0;
     right: 0;
     background-color: #ffffff;
-    border: 1px solid #ced4da;
+    border: 1px solid var(--border-color);
     border-top: none;
     border-radius: 0 0 4px 4px;
     max-height: 200px;
@@ -182,12 +204,12 @@ body {
 }
 
 .search-results div:hover {
-    background-color: #f8f9fa;
-    color: #007bff;
+    background-color: var(--bg-light);
+    color: var(--primary-color);
 }
 
 .search-results.hidden {
-    display: none;
+    display: none !important;
 }
 
 /* Toimintapainikkeet sivupalkissa */
@@ -195,7 +217,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-top: auto; /* Työnnetään painikkeet alareunaan */
+    margin-top: auto;
 }
 
 /* ==========================================================================
@@ -217,17 +239,17 @@ body {
     transform: scale(0.98);
 }
 
-.btn-primary { background-color: #007bff; color: #ffffff; }
-.btn-primary:hover { background-color: #0056b3; }
+.btn-primary { background-color: var(--primary-color); color: #ffffff; }
+.btn-primary:hover { background-color: var(--primary-hover); }
 
-.btn-secondary { background-color: #6c757d; color: #ffffff; }
-.btn-secondary:hover { background-color: #545b62; }
+.btn-secondary { background-color: var(--secondary-color); color: #ffffff; }
+.btn-secondary:hover { background-color: var(--secondary-hover); }
 
-.btn-success { background-color: #28a745; color: #ffffff; }
-.btn-success:hover { background-color: #218838; }
+.btn-success { background-color: var(--success-color); color: #ffffff; }
+.btn-success:hover { background-color: var(--success-hover); }
 
-.btn-danger { background-color: #dc3545; color: #ffffff; }
-.btn-danger:hover { background-color: #bd2130; }
+.btn-danger { background-color: var(--danger-color); color: #ffffff; }
+.btn-danger:hover { background-color: var(--danger-hover); }
 
 .hidden {
     display: none !important;
@@ -251,34 +273,37 @@ body {
 }
 
 /* ==========================================================================
-   6. ALAREUNAN REITTIVIDGET (Info Widget)
+   6. ALAREUNAN REITTIVIDGET (Info Widget / Bottom Sheet)
    ========================================================================== */
 .info-widget {
     position: fixed;
-    bottom: 0;
+    bottom: 15px;
     left: 50%;
     transform: translateX(-50%);
-    width: 100%;
-    max-width: 500px;
+    width: 320px;
     background-color: #ffffff;
-    border-radius: 8px 8px 0 0;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
-    z-index: 1002;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    z-index: 9999;
     display: flex;
     flex-direction: column;
-    max-height: 35vh;
-    transition: max-height 0.3s ease;
+    max-height: 40vh;
 }
 
 .widget-handle {
-    padding: 12px;
-    background-color: #f1f3f5;
-    text-align: center;
+    padding: 15px;
+    background-color: #ffffff;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.widget-handle h3 {
     font-size: 15px;
     font-weight: bold;
-    border-bottom: 1px solid #dee2e6;
-    cursor: default;
-    border-radius: 8px 8px 0 0;
+    color: var(--text-dark);
 }
 
 .route-list-container {
@@ -303,8 +328,8 @@ body {
 
 .route-list li {
     padding: 8px;
-    background-color: #f8f9fa;
-    border-left: 4px solid #007bff;
+    background-color: var(--bg-light);
+    border-left: 4px solid var(--primary-color);
     border-radius: 0 4px 4px 0;
     font-size: 13px;
 }
@@ -347,43 +372,65 @@ body {
 }
 
 /* ==========================================================================
-   8. MOBIILILAITTEIDEN OPTIMOINTI (Media Queries)
+   8. MOBIILILAITTEIDEN OPTIMOINTI (Bottom Sheet Pakotus)
    ========================================================================== */
 @media (max-width: 768px) {
-    /* Siirretään widget ottamaan koko alaosan leveys mobiilissa */
     .info-widget {
-        left: 0;
-        transform: none;
-        max-width: 100%;
-        max-height: 50px; /* Suljettuna vain otsikkopalkki näkyy */
+        position: fixed !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 12px 12px 0 0;
+        box-shadow: 0 -2px 15px rgba(0,0,0,0.15);
+        transform: none !important;
+        
+        /* Supistettu oletustila */
+        height: 65px !important;
+        max-height: 65px !important;
+        transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* Laajennettu tila kun otsikkoa klikataan mobiilissa */
+    .info-widget .route-list-container {
+        display: none !important;
+    }
+
+    /* Laajennettu tila (.expanded) mobiilissa */
     .info-widget.expanded {
-        max-height: 40vh;
+        height: 50vh !important;
+        max-height: 50vh !important;
+    }
+
+    .info-widget.expanded .route-list-container {
+        display: block !important;
+        overflow-y: auto;
     }
 
     .widget-handle {
-        cursor: pointer; /* Mobiilissa osoitetaan, että tätä voi klikata auki */
+        height: 65px;
+        padding: 0 20px;
+        cursor: pointer;
         position: relative;
+        justify-content: center;
     }
 
-    /* Pieni visuaalinen nuoli-indikaattori mobiiliwidgetiin */
-    .widget-handle::after {
-        content: '▲';
+    /* Keskipill-vetoviiva ylätunnisteeseen pseudoelementillä */
+    .widget-handle h3::before {
+        content: "";
         position: absolute;
-        right: 15px;
-        font-size: 11px;
-        transition: transform 0.3s ease;
-    }
-
-    .info-widget.expanded .widget-handle::after {
-        transform: rotate(180deg);
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 4px;
+        background-color: #b2bec3;
+        border-radius: 2px;
     }
 }
 
 /* ==========================================================================
-   9. GPS SIJAINTIPALLO LAITTEISTOKIIHDYTYKSELLÄ (Mobiiliystävällinen)
+   9. GPS SIJAINTIPALLO LAITTEISTOKIIHDYTYKSELLÄ (GPU-Optimointi)
    ========================================================================== */
 .gps-pulse-wrapper {
     position: relative !important;
@@ -415,7 +462,6 @@ body {
     background-color: rgba(0, 123, 255, 0.4);
     border: 1px solid rgba(0, 123, 255, 0.6);
     border-radius: 50%;
-    /* Pakotetaan 3D-raudankorjaus (GPU) jotta pyörii tasaisesti mobiililla */
     will-change: transform, opacity;
     animation: gpsPulseAnimationMobile 2s infinite ease-out !important;
     z-index: 1;
