@@ -1,8 +1,8 @@
 /**
- * Douglas-Peucker -algoritmi koordinaattipisteiden optimointiin ja yksinkertaistamiseen.
+ * Douglas-Peucker -algoritmi koordinaattipisteiden dynaamiseen optimointiin.
  * @param {Array} points [[lat, lon], ...] taulukko
- * @param {number} tolerance Toleranssiarvo (etäisyyskynnys)
- * @returns {Array} Optimoitu taulukko koordinaateista
+ * @param {number} tolerance Toleranssiarvo etäisyyskynnykselle
+ * @returns {Array} Optimoitu ja karsittu maantieteellinen pistelista
  */
 export function simplifyPointsDouglasPeucker(points, tolerance) {
     if (points.length <= 2) return points;
@@ -28,9 +28,6 @@ export function simplifyPointsDouglasPeucker(points, tolerance) {
     }
 }
 
-/**
- * Apufunktio: Laskee pisteen kohtisuoran etäisyyden kahden pisteen muodostamasta janasta.
- */
 function getPerpendicularDistance(p, p1, p2) {
     let x = p1[0], y = p1[1];
     let dx = p2[0] - x, dy = p2[1] - y;

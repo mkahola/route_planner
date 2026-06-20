@@ -1,4 +1,4 @@
-import { t, activeLang } from './i18n.js';
+import { t } from './i18n.js';
 import { checkBackendStatus, fetchORSRoute, searchAddressGeocode } from './api.js';
 import { simplifyPointsDouglasPeucker } from './utils.js';
 import { parseGPXToCoordinates, exportTracksToGPXFile } from './gpx.js';
@@ -10,11 +10,10 @@ import {
     renderGPXLocationPulseMarker 
 } from './map.js';
 
-// Keskitetty tilanhallinta (Global Application State)
 const globalState = {
     readOnlyMode: false,
     tracks: [],
-    lastActionWasImport: false // Seuraa ERITYISSÄÄNTÖÄ 2 varten
+    lastActionWasImport: false 
 };
 
 let mapInstance = null;
@@ -22,15 +21,12 @@ let activeModalTarget = null;
 let geocodeDebounceTimeout = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Alustetaan otsikko kielen mukaan
     document.title = t('title');
     translateDOM();
     setupApplicationUIEventListeners();
 
-    // Alustetaan Leaflet kartta
     mapInstance = initializeLeafletMapInstance('map', globalState, handleWaypointPositionReRouting, promptWaypointDeletionModal);
 
-    // Tarkistetaan backend-yhteys
     const isBackendAlive = await checkBackendStatus();
     if (!isBackendAlive) {
         globalState.readOnlyMode = true;
@@ -41,21 +37,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Karttaklikkaus - Uuden pisteen lisäys
     mapInstance.on('click', (e) => {
         if (globalState.readOnlyMode) return;
         
         let targetTrackIndex = globalState.tracks.length - 1;
         
-        // ERITYISSÄÄNTÖ 2: Jos edellinen toiminto oli GPX-import, aloitetaan kokonaan uusi ura klikkauksesta
+        // ERITYISSÄÄNTÖ 2: Jos edellinen toiminto oli GPX-import, klikkaus aloittaa kokonaan uuden itsenäisen reitin
         if (globalState.tracks.length === 0 || globalState.lastActionWasImport) {
-            globalState.tracks.push({
-                waypoints: [],
-                routeGeometry: [],
-                isImportedGPX: false
-            });
+            globalState.tracks.push({ waypoints: [], routeGeometry: [], isImportedGPX: false });
             targetTrackIndex = globalState.tracks.length - 1;
-            globalState.lastActionWasImport = false; // Nollataan lippu
+            globalState.lastActionWasImport = false; 
         }
 
         const currentTrack = globalState.tracks[targetTrackIndex];
@@ -66,18 +57,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         computeTrackRoutingPathIntersection(currentTrack);
 
-        setTimeout(() => {
-            newMarker.isNewPoint = false;
-        }, 1000);
+        setTimeout(() => { newMarker.isNewPoint = false; }, 1000);
     });
 
-    // Geolokaation haku ja sininen sykkivä pallo laitteistokiihdytyksellä
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                renderGPXLocationPulseMarker(pos.coords.latitude, pos.coords.longitude);
-            },
-            (err) => console.log("Geolocation access denied or timed out.", err),
+            (pos) => { renderGPXLocationPulseMarker(pos.coords.latitude, pos.coords.longitude); },
+            (err) => console.log("Geolocation lookup skipped.", err),
             { enableHighAccuracy: true, timeout: 5000 }
         );
     }
@@ -108,18 +94,14 @@ function setupApplicationUIEventListeners() {
         ol.addEventListener('click', toggleSb);
     }
 
-    // "Bottom Sheet" -Widgetin mobiilitapahtumat ja Leaflet-estot
     const widget = document.getElementById('info-widget');
     if (widget) {
         const handle = widget.querySelector('.widget-handle');
         if (handle) {
             handle.addEventListener('click', () => {
-                if (window.innerWidth <= 768) {
-                    widget.classList.toggle('expanded');
-                }
+                if (window.innerWidth <= 768) widget.classList.toggle('expanded');
             });
         }
-        // Estetään kartan taustatapahtumat widgetin päältä Leaflet-integraatiossa
         L.DomEvent.disableClickPropagation(widget);
         L.DomEvent.disableScrollPropagation(widget);
     }
@@ -140,13 +122,9 @@ function setupApplicationUIEventListeners() {
     const btnClear = document.getElementById('btn-clear-all');
     if (btnClear) {
         btnClear.addEventListener('click', () => {
-            if (globalState.tracks && globalState.tracks.length > 0) {
-                globalState.tracks.forEach(track => {
-                    track.waypoints.forEach(wp => {
-                        if (mapInstance && mapInstance.hasLayer(wp)) mapInstance.removeLayer(wp);
-                    });
-                });
-            }
+            globalState.tracks.forEach(track => {
+                track.waypoints.forEach(wp => { if (mapInstance.hasLayer(wp)) mapInstance.removeLayer(wp); });
+            });
             globalState.tracks = [];
             globalState.lastActionWasImport = false;
             finalizeTrackRefreshSequence();
@@ -160,7 +138,6 @@ function setupApplicationUIEventListeners() {
 
     document.getElementById('modal-btn-yes').addEventListener('click', executeConfirmedWaypointDeletion);
 
-    // Osoitehaku dynaamisella Debouncella
     const searchInput = document.getElementById('address-search');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
@@ -210,7 +187,7 @@ function renderGeocodingResultsBox(results) {
             
             computeTrackRoutingPathIntersection(currentTrack);
             
-            // Pidetään nykyinen zoom-taso ennallaan vaatimuksen mukaisesti
+            // Vaatimus: Pidetään zoom-taso tismalleen ennallaan osoitehaussa
             mapInstance.setView(latlng, mapInstance.getZoom());
 
             container.classList.add('hidden');
@@ -239,7 +216,6 @@ async function computeTrackRoutingPathIntersection(track) {
 
         if (geoData && geoData.features && geoData.features.length > 0) {
             let rawCoords = geoData.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-            // Optimoidaan reitin geometria Douglas-Peucker -yksinkertaistuksella (toleranssi 0.0001)
             track.routeGeometry = simplifyPointsDouglasPeucker(rawCoords, 0.0001);
         } else {
             track.routeGeometry = track.waypoints.map(w => [w.getLatLng().lat, w.getLatLng().lng]);
@@ -265,7 +241,6 @@ function evaluateVisibilityOfDynamicButtons() {
         if (globalState.tracks.length >= 2) mergeBtn.classList.remove('hidden');
         else mergeBtn.classList.add('hidden');
     }
-
     if (exportBtn) {
         if (globalState.tracks.some(t => t.routeGeometry && t.routeGeometry.length > 0)) exportBtn.classList.remove('hidden');
         else exportBtn.classList.add('hidden');
@@ -297,11 +272,11 @@ async function executeConfirmedWaypointDeletion() {
     const track = globalState.tracks[trackIndex];
     if (!track) return;
 
-    // ERITYISSÄÄNTÖ 1: Jos tuodun reitin alku- tai loppupiste poistetaan, ei reititetä koko uraa uusiksi
     const isEdgePointDeletion = (wpIndex === 0 || wpIndex === track.waypoints.length - 1);
     
+    // ERITYISSÄÄNTÖ 1: Jos tuodun reitin alku- tai loppupiste poistetaan, ei reititetä koko uraa uusiksi vaan karsitaan vain sen pääty segmentistä
     if (track.isImportedGPX && isEdgePointDeletion) {
-        if (mapInstance && mapInstance.hasLayer(track.waypoints[wpIndex])) {
+        if (mapInstance.hasLayer(track.waypoints[wpIndex])) {
             mapInstance.removeLayer(track.waypoints[wpIndex]);
         }
         
@@ -314,8 +289,7 @@ async function executeConfirmedWaypointDeletion() {
         }
         finalizeTrackRefreshSequence();
     } else {
-        // Normaali pisteen poisto ja välin uudelleenreititys
-        if (mapInstance && mapInstance.hasLayer(track.waypoints[wpIndex])) {
+        if (mapInstance.hasLayer(track.waypoints[wpIndex])) {
             mapInstance.removeLayer(track.waypoints[wpIndex]);
         }
         
@@ -340,7 +314,6 @@ function handleBulkGPXImporting(e) {
             const rawCoords = parseGPXToCoordinates(evt.target.result);
             if (rawCoords.length === 0) return;
 
-            // Karsitaan raaka jälki sopivaan määrään editointipisteitä (Douglas-Peucker toleranssi 0.0005)
             const simplified = simplifyPointsDouglasPeucker(rawCoords, 0.0005);
             
             const currentTrackIdx = globalState.tracks.length;
@@ -348,13 +321,8 @@ function handleBulkGPXImporting(e) {
                 createInteractiveWaypointMarker(L.latLng(pt[0], pt[1]), currentTrackIdx, wpIdx)
             );
 
-            globalState.tracks.push({
-                waypoints: wps,
-                routeGeometry: rawCoords, 
-                isImportedGPX: true
-            });
-            
-            globalState.lastActionWasImport = true; // Asetetaan lippu ERITYISSÄÄNTÖÄ 2 varten
+            globalState.tracks.push({ waypoints: wps, routeGeometry: rawCoords, isImportedGPX: true });
+            globalState.lastActionWasImport = true; 
             finalizeTrackRefreshSequence();
         };
         reader.readAsText(file);
@@ -371,7 +339,7 @@ async function executeGlobalTracksMergingSequence() {
     for (let i = 0; i < globalState.tracks.length; i++) {
         const currentTrack = globalState.tracks[i];
         
-        // Reititetään urien väliin jäävät aukot automaattisesti
+        // Reititetään urien väliin jäävät aukot dynaamisesti lennossa teitä pitkin
         if (mergedWaypoints.length > 0 && currentTrack.waypoints.length > 0) {
             const lastWp = mergedWaypoints[mergedWaypoints.length - 1].getLatLng();
             const nextWp = currentTrack.waypoints[0].getLatLng();
@@ -384,7 +352,7 @@ async function executeGlobalTracksMergingSequence() {
                     mergedGeometry.push(...intermediatePoints);
                 }
             } catch (err) {
-                console.error("Failed to automatically route track intersection gap", err);
+                console.error("Failed to route track intersection gap", err);
             }
         }
 
@@ -392,18 +360,12 @@ async function executeGlobalTracksMergingSequence() {
         mergedGeometry.push(...currentTrack.routeGeometry);
     }
 
-    // Päivitetään indeksit yhdistetylle uralle
     mergedWaypoints.forEach((wp, idx) => {
         wp.off('dragend');
         wp.on('dragend', () => handleWaypointPositionReRouting(0, idx, wp.getLatLng()));
     });
 
-    globalState.tracks = [{
-        waypoints: mergedWaypoints,
-        routeGeometry: mergedGeometry,
-        isImportedGPX: false
-    }];
-
+    globalState.tracks = [{ waypoints: mergedWaypoints, routeGeometry: mergedGeometry, isImportedGPX: false }];
     globalState.lastActionWasImport = false;
     finalizeTrackRefreshSequence();
 }

@@ -1,25 +1,17 @@
-import { activeLang } from './i18n.js';
-
 let map = null;
 let locationMarker = null; 
 let trackPolylines = [];   
 
 export function initializeLeafletMapInstance(elementId, globalState, onReRoute, onDeletePrompt) {
-    // Alustetaan karttainstanssi ilman oletuszoom-painikkeita
-    map = L.map(elementId, {
-        zoomControl: false
-    }).setView([64.9146, 26.0672], 5);
+    map = L.map(elementId, { zoomControl: false }).setView([64.9146, 26.0672], 5);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // Pakotetaan Zoom-kontrolli puhtaasti oikeaan yläkulmaan
-    L.control.zoom({
-        position: 'topright'
-    }).addTo(map);
+    // Pakotetaan Zoom-kontrolli puhtaasti oikeaan yläkulmaan vaatimusten mukaisesti
+    L.control.zoom({ position: 'topright' }).addTo(map);
 
-    // Kuunnellaan karttanäkymän siirtoja dynaamista karsintaa varten
     map.on('moveend zoomend', () => {
         handleDynamicWaypointPruning(globalState);
     });
@@ -52,7 +44,6 @@ export function renderGPXLocationPulseMarker(lat, lon) {
 export function renderAllMapLayersAndTracks(globalState) {
     if (!map || !globalState) return;
 
-    // Tyhjennetään olemassa olevat piirretyt viivat
     trackPolylines.forEach(polyline => map.removeLayer(polyline));
     trackPolylines = [];
 
@@ -67,9 +58,7 @@ export function renderAllMapLayersAndTracks(globalState) {
             trackPolylines.push(polyline);
         }
 
-        // Sidotaan tapahtumat dynaamisesti oikeilla indekseillä varmistetusti dragend-tapahtumaan
         track.waypoints.forEach((wp, wpIdx) => {
-            wp.off('drag');
             wp.off('dragend');
             wp.on('dragend', () => {
                 if (map._onReRoute) map._onReRoute(trackIdx, wpIdx, wp.getLatLng());
@@ -85,7 +74,6 @@ export function renderAllMapLayersAndTracks(globalState) {
 }
 
 export function createInteractiveWaypointMarker(latlng, trackIndex, wpIndex) {
-    // Luodaan standardoitu, tarkennettu Leaflet-ikoni oikealla ankkuroinnilla [12, 41]
     const customIcon = L.icon({
         iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
@@ -95,24 +83,15 @@ export function createInteractiveWaypointMarker(latlng, trackIndex, wpIndex) {
         shadowAnchor: [12, 41]
     });
 
-    const marker = L.marker(latlng, { 
-        draggable: true,
-        icon: customIcon
-    });
-    
-    // Ohitetaan dynaaminen karsinta luontihetkellä
+    const marker = L.marker(latlng, { draggable: true, icon: customIcon });
     marker.isNewPoint = true; 
 
     marker.on('dragend', () => {
-        if (map._onReRoute) {
-            map._onReRoute(trackIndex, wpIndex, marker.getLatLng());
-        }
+        if (map._onReRoute) map._onReRoute(trackIndex, wpIndex, marker.getLatLng());
     });
 
     marker.on('click', () => {
-        if (map._onDeletePrompt) {
-            map._onDeletePrompt(trackIndex, wpIndex);
-        }
+        if (map._onDeletePrompt) map._onDeletePrompt(trackIndex, wpIndex);
     });
 
     return marker;
@@ -139,8 +118,8 @@ function handleDynamicWaypointPruning(globalState) {
     globalState.tracks.forEach((track) => {
         const totalWps = track.waypoints.length;
         
-        let maxVisibleMarkers = 10;
-        if (currentZoom >= 16) maxVisibleMarkers = 40;
+        let maxVisibleMarkers = 10; // Kaukana: Max 6-10 markeria näkyvissä dynaamisesti
+        if (currentZoom >= 16) maxVisibleMarkers = 40; // Lähellä: Jopa 40 markerikarsinta tuettu
         else if (currentZoom >= 12) maxVisibleMarkers = 20;
 
         const skipFactor = Math.ceil(totalWps / maxVisibleMarkers);
@@ -156,18 +135,16 @@ function handleDynamicWaypointPruning(globalState) {
                 return;
             }
 
-            // SÄÄNTÖNMUKAISESTI: Näytetään aina reitin alku- ja loppupiste, 
-            // sekä vähintään yksi piste näkymän ulkopuolelta ennen alkua / jälkeen lopun.
             const isEdgePoint = (wpIdx === 0 || wpIdx === totalWps - 1);
+            // Säännönmukaisesti vaatimus: Näytä aina vähintään yksi piste näkymän ulkopuolelta ennen alkua / lopun jälkeen
             const isBufferPoint = (wpIdx === 1 || wpIdx === totalWps - 2);
             const isSampled = (wpIdx % skipFactor === 0);
-            
             const isInBounds = bounds.contains(wp.getLatLng());
 
             if (isEdgePoint || isBufferPoint || (isSampled && isInBounds)) {
                 if (!map.hasLayer(wp)) wp.addTo(map);
             } else {
-                if (map.hasLayer(wp)) wp.remove(map);
+                if (map.hasLayer(wp)) wp.removeLayer(wp);
             }
         });
     });

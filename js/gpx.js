@@ -1,7 +1,5 @@
 /**
  * Parsii GPX-tekstitiedoston sisällöstä maantieteelliset koordinaatit.
- * @param {string} gpxText GPX-tiedoston XML-raakasisältö
- * @returns {Array} Taulukko koordinaateista [[lat, lon], ...]
  */
 export function parseGPXToCoordinates(gpxText) {
     const parser = new DOMParser();
@@ -21,7 +19,6 @@ export function parseGPXToCoordinates(gpxText) {
 
 /**
  * Muodostaa kaikista kartalla olevista urista yhtenäisen GPX-tiedoston ja lataa sen.
- * @param {Array} tracks Globaali tracks-taulukko sovelluksen tilasta
  */
 export function exportTracksToGPXFile(tracks) {
     if (!tracks || tracks.length === 0) return;

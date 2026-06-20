@@ -1,11 +1,10 @@
-// Lokalisointisanakirja (i18n) sovellukselle
 const dictionary = {
     fi: {
         title: "Reittisuunnittelu",
-        sidebarTitle: "Valikko",
+        sidebarTitle: "Reitin suunnittelu",
         searchLabel: "Hae lähtöpiste / osoite",
         searchPlaceholder: "Kirjoita osoite...",
-        btnGpxImport: "Tuon GPX-tiedostot",
+        btnGpxImport: "Tuo GPX-tiedostot",
         btnMergeTracks: "Yhdistä urat",
         btnGpxExport: "Lataa GPX",
         btnClearAll: "Tyhjennä kaikki",
@@ -20,7 +19,7 @@ const dictionary = {
     },
     en: {
         title: "Route planner",
-        sidebarTitle: "Menu",
+        sidebarTitle: "Plan a route",
         searchLabel: "Search starting point / address",
         searchPlaceholder: "Type an address...",
         btnGpxImport: "Import GPX files",
@@ -34,25 +33,23 @@ const dictionary = {
         confirmDeletePoint: "Delete this waypoint?",
         btnYes: "Yes",
         btnNo: "No",
-        readOnlyMode: "Read-only mode active"
+        readOnlyMode: "Vain katselutila käytössä / Read-only mode active"
     }
 };
 
-// Kielentunnistus ja fallback
 const userLanguage = navigator.language || navigator.userLanguage;
 export const activeLang = userLanguage.startsWith('fi') ? 'fi' : 'en';
 
 /**
- * Dynaaminen kääntäjäfunktio dynaamisilla muuttujilla
+ * Dynaaminen kääntäjäfunktio muuttujilla
  * @param {string} key Käännösavain
- * @param {Object} variables Avain-arvo parit korvattaville osioille (esim. {dist: 12.4})
- * @returns {string} Käännetty merkkijono
+ * @param {Object} variables Avain-arvo-parit dynaamiselle datalle
+ * @returns {string} Käännetty teksti
  */
 export function t(key, variables = {}) {
     const langDict = dictionary[activeLang] || dictionary['en'];
     let text = langDict[key] || dictionary['en'][key] || key;
 
-    // Korvataan dynaamiset muuttujat, jos määritelty
     Object.keys(variables).forEach(vKey => {
         text = text.replace(`{${vKey}}`, variables[vKey]);
     });
