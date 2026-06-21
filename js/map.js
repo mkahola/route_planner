@@ -1,13 +1,43 @@
+// js/map.js
+
+// Tuodaan käännösfunktio tiedoston yläosaan
+import { t } from './i18n.js';
+
 let map = null;
-let locationMarker = null; 
-let trackPolylines = [];   
+let locationMarker = null;
+let trackPolylines = [];
+let baseMaps = {};
+let layersControl = null; // Tallennetaan valikkokontrolli muuttujaan
 
 export function initializeLeafletMapInstance(elementId, globalState, onReRoute, onDeletePrompt) {
-    map = L.map(elementId, { zoomControl: false }).setView([64.9146, 26.0672], 5);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // 1. Luodaan normaali OpenStreetMap-vektorikarttataso
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    });
+
+    // 2. Luodaan Esri World Imagery -satelliittitaso
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri...',
+        maxZoom: 19
+    });
+
+    // Alustetaan kartta
+    map = L.map(elementId, { 
+        zoomControl: false,
+        layers: [osmLayer]
+    }).setView([64.9146, 26.0672], 5);
+
+    // KÄÄNNETÄÄN TASOT: Haetaan nimet i18n-järjestelmästä (annetaan varajärjestelmänä suomenkieliset oletukset)
+    const labelMap = t('Map', 'Kartta');
+    const labelSatellite = t('Satellite', 'Satelliitti');
+
+    baseMaps = {
+        [labelMap]: osmLayer,
+        [labelSatellite]: satelliteLayer
+    };
+
+    // Luodaan ja lisätään valikko kartalle dynaamisilla nimillä
+    layersControl = L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
     L.control.zoom({ position: 'topright' }).addTo(map);
 
