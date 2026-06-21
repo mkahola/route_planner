@@ -9,7 +9,6 @@ export function initializeLeafletMapInstance(elementId, globalState, onReRoute, 
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // Pakotetaan Zoom-kontrolli puhtaasti oikeaan yläkulmaan vaatimusten mukaisesti
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     map.on('moveend zoomend', () => {
@@ -44,10 +43,16 @@ export function renderGPXLocationPulseMarker(lat, lon) {
 export function renderAllMapLayersAndTracks(globalState) {
     if (!map || !globalState) return;
 
-    trackPolylines.forEach(polyline => map.removeLayer(polyline));
+    // Puhdistetaan vanhat reitit kartalta turvallisesti
+    trackPolylines.forEach(polyline => {
+        if (map.hasLayer(polyline)) {
+            map.removeLayer(polyline);
+        }
+    });
     trackPolylines = [];
 
     globalState.tracks.forEach((track, trackIdx) => {
+        // Piirretään reittigeometria tieverkostoa pitkin
         if (track.routeGeometry && track.routeGeometry.length > 0) {
             const polyline = L.polyline(track.routeGeometry, {
                 color: track.isImportedGPX ? '#28a745' : '#007bff', 
@@ -58,19 +63,37 @@ export function renderAllMapLayersAndTracks(globalState) {
             trackPolylines.push(polyline);
         }
 
-        track.waypoints.forEach((wp, wpIdx) => {
+        // Sidotaan event listenerit dynaamisesti reaaliaikaisten indeksien perusteella
+        track.waypoints.forEach((wp) => {
             wp.off('dragend');
             wp.on('dragend', () => {
-                if (map._onReRoute) map._onReRoute(trackIdx, wpIdx, wp.getLatLng());
+                // Etsitään markerin TÄMÄNhetkinen sijainti datassa dynaamisesti
+                const currentTrackIdx = globalState.tracks.findIndex(t => t.waypoints.includes(wp));
+                if (currentTrackIdx !== -1) {
+                    const currentWpIdx = globalState.tracks[currentTrackIdx].waypoints.indexOf(wp);
+                    if (map._onReRoute) {
+                        map._onReRoute(currentTrackIdx, currentWpIdx, wp.getLatLng());
+                    }
+                }
             });
+
             wp.off('click');
             wp.on('click', () => {
-                if (map._onDeletePrompt) map._onDeletePrompt(trackIdx, wpIdx);
+                const currentTrackIdx = globalState.tracks.findIndex(t => t.waypoints.includes(wp));
+                if (currentTrackIdx !== -1) {
+                    const currentWpIdx = globalState.tracks[currentTrackIdx].waypoints.indexOf(wp);
+                    if (map._onDeletePrompt) {
+                        map._onDeletePrompt(currentTrackIdx, currentWpIdx);
+                    }
+                }
             });
         });
     });
 
-    handleDynamicWaypointPruning(globalState);
+    // Suoritetaan dynaaminen karsinta asynkronisesti
+    setTimeout(() => {
+        handleDynamicWaypointPruning(globalState);
+    }, 0);
 }
 
 export function createInteractiveWaypointMarker(latlng, trackIndex, wpIndex) {
@@ -86,6 +109,7 @@ export function createInteractiveWaypointMarker(latlng, trackIndex, wpIndex) {
     const marker = L.marker(latlng, { draggable: true, icon: customIcon });
     marker.isNewPoint = true; 
 
+    // Alustavat listenerit luontihetkellä (renderAllMapLayersAndTracks korvaa nämä dynaamisilla)
     marker.on('dragend', () => {
         if (map._onReRoute) map._onReRoute(trackIndex, wpIndex, marker.getLatLng());
     });
@@ -108,7 +132,7 @@ export function calculateTrackGeometryTotalDistance(routeGeometry) {
     return dist / 1000; 
 }
 
-function handleDynamicWaypointPruning(globalState) {
+export function handleDynamicWaypointPruning(globalState) {
     if (!map || !globalState || !globalState.tracks) return;
     
     const bounds = map.getBounds();
@@ -117,9 +141,10 @@ function handleDynamicWaypointPruning(globalState) {
 
     globalState.tracks.forEach((track) => {
         const totalWps = track.waypoints.length;
+        if (totalWps === 0) return;
         
-        let maxVisibleMarkers = 10; // Kaukana: Max 6-10 markeria dynaamisesti
-        if (currentZoom >= 16) maxVisibleMarkers = 40; // Lähellä: jopa 40 markerikarsinta tuettu tarkkaan editointiin
+        let maxVisibleMarkers = 10; 
+        if (currentZoom >= 16) maxVisibleMarkers = 40; 
         else if (currentZoom >= 12) maxVisibleMarkers = 20;
 
         const skipFactor = Math.ceil(totalWps / maxVisibleMarkers);
@@ -136,15 +161,18 @@ function handleDynamicWaypointPruning(globalState) {
             }
 
             const isEdgePoint = (wpIdx === 0 || wpIdx === totalWps - 1);
-            // Säännönmukaisesti vaatimus: Näytä aina vähintään yksi piste näkymän ulkopuolelta ennen alkua ja lopun jälkeen
             const isBufferPoint = (wpIdx === 1 || wpIdx === totalWps - 2);
             const isSampled = (wpIdx % skipFactor === 0);
             const isInBounds = bounds.contains(wp.getLatLng());
 
             if (isEdgePoint || isBufferPoint || (isSampled && isInBounds)) {
-                if (!map.hasLayer(wp)) wp.addTo(map);
+                if (!map.hasLayer(wp)) {
+                    wp.addTo(map);
+                }
             } else {
-                if (map.hasLayer(wp)) wp.removeLayer(wp);
+                if (map.hasLayer(wp)) {
+                    map.removeLayer(wp);
+                }
             }
         });
     });

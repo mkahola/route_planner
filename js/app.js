@@ -7,14 +7,15 @@ import {
     renderAllMapLayersAndTracks, 
     createInteractiveWaypointMarker, 
     calculateTrackGeometryTotalDistance,
-    renderGPXLocationPulseMarker 
+    renderGPXLocationPulseMarker,
+    handleDynamicWaypointPruning
 } from './map.js';
 
 const globalState = {
     readOnlyMode: false,
     tracks: [],
     lastActionWasImport: false,
-    lastActionWasMerge: false // Valmius ERITYISSÄÄNNÖLLE 3
+    lastActionWasMerge: false
 };
 
 let mapInstance = null;
@@ -43,9 +44,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         let targetTrackIndex = globalState.tracks.length - 1;
         
-        // ERITYISSÄÄNTÖ 2 & ERITYISSÄÄNTÖ 3:
-        // Jos edellinen toiminto oli GPX-import TAI urien yhdistäminen ("lastActionWasMerge"),
-        // seuraava klikkaus kartalle luo kokonaan uuden, itsenäisen reitin (aloituspisteen).
         if (globalState.tracks.length === 0 || globalState.lastActionWasImport || globalState.lastActionWasMerge) {
             globalState.tracks.push({ waypoints: [], routeGeometry: [], isImportedGPX: false });
             targetTrackIndex = globalState.tracks.length - 1;
@@ -56,12 +54,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentTrack = globalState.tracks[targetTrackIndex];
         const newWpIndex = currentTrack.waypoints.length;
 
+        // Luodaan uusi marker ja pakotetaan se heti kartalle
         const newMarker = createInteractiveWaypointMarker(e.latlng, targetTrackIndex, newWpIndex);
+        newMarker.addTo(mapInstance);
         currentTrack.waypoints.push(newMarker);
         
         computeTrackRoutingPathIntersection(currentTrack);
 
-        setTimeout(() => { newMarker.isNewPoint = false; }, 1000);
+        // Annetaan puskuriaikaa ennen karsintajärjestelmään siirtymistä
+        setTimeout(() => { 
+            newMarker.isNewPoint = false; 
+            handleDynamicWaypointPruning(globalState);
+        }, 800);
     });
 
     if (navigator.geolocation) {
@@ -189,15 +193,20 @@ function renderGeocodingResultsBox(results) {
             const newWpIndex = currentTrack.waypoints.length;
 
             const newMarker = createInteractiveWaypointMarker(latlng, targetTrackIndex, newWpIndex);
+            newMarker.addTo(mapInstance);
             currentTrack.waypoints.push(newMarker);
             
             computeTrackRoutingPathIntersection(currentTrack);
             
-            // Vaatimus: Pidetään zoom-taso tismalleen ennallaan osoitehaussa
             mapInstance.setView(latlng, mapInstance.getZoom());
 
             container.classList.add('hidden');
             document.getElementById('address-search').value = '';
+
+            setTimeout(() => {
+                newMarker.isNewPoint = false;
+                handleDynamicWaypointPruning(globalState);
+            }, 800);
         });
         container.appendChild(div);
     });
@@ -280,7 +289,6 @@ async function executeConfirmedWaypointDeletion() {
 
     const isEdgePointDeletion = (wpIndex === 0 || wpIndex === track.waypoints.length - 1);
     
-    // ERITYISSÄÄNTÖ 1: Jos tuodun reitin alku- tai loppupiste poistetaan, ei reititetä koko uraa uusiksi vaan poistetaan vain sen segmentti
     if (track.isImportedGPX && isEdgePointDeletion) {
         if (mapInstance.hasLayer(track.waypoints[wpIndex])) {
             mapInstance.removeLayer(track.waypoints[wpIndex]);
@@ -323,9 +331,11 @@ function handleBulkGPXImporting(e) {
             const simplified = simplifyPointsDouglasPeucker(rawCoords, 0.0005);
             
             const currentTrackIdx = globalState.tracks.length;
-            const wps = simplified.map((pt, wpIdx) => 
-                createInteractiveWaypointMarker(L.latLng(pt[0], pt[1]), currentTrackIdx, wpIdx)
-            );
+            const wps = simplified.map((pt, wpIdx) => {
+                const marker = createInteractiveWaypointMarker(L.latLng(pt[0], pt[1]), currentTrackIdx, wpIdx);
+                marker.isNewPoint = false; // Tuoduissa reiteissä annetaan karsinnan päättää heti tasapainon vuoksi
+                return marker;
+            });
 
             globalState.tracks.push({ waypoints: wps, routeGeometry: rawCoords, isImportedGPX: true });
             globalState.lastActionWasImport = true; 
@@ -340,13 +350,19 @@ function handleBulkGPXImporting(e) {
 async function executeGlobalTracksMergingSequence() {
     if (globalState.tracks.length < 2) return;
 
+    // Poistetaan kaikki vanhat markerit kartalta ennen uuden yhdistetyn tilan luontia
+    globalState.tracks.forEach(track => {
+        track.waypoints.forEach(wp => {
+            if (mapInstance.hasLayer(wp)) mapInstance.removeLayer(wp);
+        });
+    });
+
     let mergedWaypoints = [];
     let mergedGeometry = [];
 
     for (let i = 0; i < globalState.tracks.length; i++) {
         const currentTrack = globalState.tracks[i];
         
-        // Reititetään urien väliin jäävät aukot dynaamisesti lennossa tieverkostoa pitkin
         if (mergedWaypoints.length > 0 && currentTrack.waypoints.length > 0) {
             const lastWp = mergedWaypoints[mergedWaypoints.length - 1].getLatLng();
             const nextWp = currentTrack.waypoints[0].getLatLng();
@@ -367,20 +383,23 @@ async function executeGlobalTracksMergingSequence() {
         mergedGeometry.push(...currentTrack.routeGeometry);
     }
 
-    // Alustetaan markerit uudestaan vastaamaan uutta keskitettyä indeksiä (0) raahauksia varten
+    // Alustetaan markerit vastaamaan uutta keskitettyä nollaindeksiä (0)
     mergedWaypoints.forEach((wp, idx) => {
         wp.off('dragend');
         wp.on('dragend', () => handleWaypointPositionReRouting(0, idx, wp.getLatLng()));
+        wp.off('click');
+        wp.on('click', () => promptWaypointDeletionModal(0, idx));
+        wp.isNewPoint = false; 
     });
 
     globalState.tracks = [{ waypoints: mergedWaypoints, routeGeometry: mergedGeometry, isImportedGPX: false }];
     globalState.lastActionWasImport = false;
-    
-    // ERITYISSÄÄNTÖ 3: Kun reitit on yhdistetty, asetetaan lippu 'lastActionWasMerge = true'.
-    // Tällöin seuraava karttaklikkaus tulkitaan täysin uuden itsenäisen uran aloitukseksi.
     globalState.lastActionWasMerge = true;
     
+    // Pakotetaan Leaflet päivittämään sisäiset kokonsa ja laukaistaan moveend synkronoinnin varmistamiseksi
+    mapInstance.invalidateSize();
     finalizeTrackRefreshSequence();
+    mapInstance.fire('moveend');
 }
 
 function updateBottomWidgetTracklistUI() {
