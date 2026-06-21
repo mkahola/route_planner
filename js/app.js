@@ -237,6 +237,7 @@ function translateDOM() {
     const el = (id) => document.getElementById(id);
     if (el('sidebar-title')) el('sidebar-title').textContent = t('sidebarTitle');
     if (el('search-label')) el('search-label').textContent = t('searchLabel');
+    if (el('contact-title')) el('contact-title').textContent = t('Contact');
     if (el('btn-gpx-import-trigger')) el('btn-gpx-import-trigger').textContent = t('btnGpxImport');
     if (el('btn-merge-tracks')) el('btn-merge-tracks').textContent = t('btnMergeTracks');
     if (el('btn-gpx-export')) el('btn-gpx-export').textContent = t('btnGpxExport');
