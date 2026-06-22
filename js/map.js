@@ -126,7 +126,50 @@ export function createInteractiveWaypointMarker(latlng) {
 
     const marker = L.marker(latlng, { draggable: true, icon: customIcon });
     marker.isNewPoint = true; // Estetään piilottaminen välittömästi luonnin jälkeen
+
+    // Luodaan dynaaminen popup-sisältö, jossa on sekä Street View -linkki että Poista-painike
+    updateMarkerPopupContent(marker, latlng);
+
     return marker;
+}
+
+/**
+ * Apufunktio popupin sisällön päivittämiseen (LOKALISOITU VERSIO)
+ */
+function updateMarkerPopupContent(marker, latlng) {
+    const lat = latlng.lat;
+    const lng = latlng.lng;
+
+    const streetViewUrl = 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + lat + ',' + lng;
+
+    // Haetaan dynaamiset käännökset i18n-järjestelmästä (varatekstit mukana)
+    const labelWaypoint = t('popupWaypoint', 'Reittipiste');
+    const labelDelete = t('popupDeletePoint', 'Poista piste');
+    const labelStreetView = t('popupStreetView', 'Street View');
+
+    const popupContent = `
+        <div style="font-family: sans-serif; padding: 4px; min-width: 130px; text-align: center;">
+            <strong style="display: block; margin-bottom: 8px; color: #333; font-size: 13px;">${labelWaypoint}</strong>
+
+            <a href="${streetViewUrl}" target="_blank" rel="noopener noreferrer" 
+               style="display: flex; align-items: center; justify-content: center; gap: 6px; background-color: #4285F4; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 11px; margin-bottom: 6px;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="display: inline-block;">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                ${labelStreetView}
+            </a>
+
+            <button class="popup-delete-btn" 
+                    style="display: block; width: 100%; background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; cursor: pointer;">
+                ${labelDelete}
+            </button>
+        </div>
+    `;
+
+    marker.bindPopup(popupContent, {
+        offset: [0, -32],
+        closeButton: true
+    });
 }
 
 /**
@@ -135,9 +178,9 @@ export function createInteractiveWaypointMarker(latlng) {
 export function bindDynamicMarkerEvents(marker, globalState) {
     if (!marker || typeof marker.wpId === 'undefined') return;
 
+    // Raahauksen kuuntelija
     marker.off('dragend');
     marker.on('dragend', () => {
-        // Etsitään dynaamisesti mihin uraan ja indeksiin kyseinen piste kuuluu wpId-perusteella
         let targetTrackIdx = -1;
         let targetWpIdx = -1;
 
@@ -150,28 +193,45 @@ export function bindDynamicMarkerEvents(marker, globalState) {
             }
         }
 
-        if (targetTrackIdx !== -1 && targetWpIdx !== -1 && map._onReRoute) {
-            map._onReRoute(targetTrackIdx, targetWpIdx, marker.getLatLng());
+        if (targetTrackIdx !== -1 && targetWpIdx !== -1) {
+            // Päivitetään popupin linkki vastaamaan uutta paikkaa raahauksen jälkeen
+            updateMarkerPopupContent(marker, marker.getLatLng());
+            
+            if (map._onReRoute) {
+                map._onReRoute(targetTrackIdx, targetWpIdx, marker.getLatLng());
+            }
         }
     });
 
+    // Klikkauskuuntelija
     marker.off('click');
     marker.on('click', () => {
-        let targetTrackIdx = -1;
-        let targetWpIdx = -1;
+        marker.openPopup();
 
-        for (let i = 0; i < globalState.tracks.length; i++) {
-            const idx = globalState.tracks[i].waypoints.findIndex(wp => wp.wpId === marker.wpId);
-            if (idx !== -1) {
-                targetTrackIdx = i;
-                targetWpIdx = idx;
-                break;
+        // Odotetaan hetki, että popup on piirtynyt DOMiin
+        setTimeout(() => {
+            const deleteBtn = document.querySelector('.popup-delete-btn');
+            if (deleteBtn) {
+                deleteBtn.onclick = () => {
+                    let targetTrackIdx = -1;
+                    let targetWpIdx = -1;
+
+                    for (let i = 0; i < globalState.tracks.length; i++) {
+                        const idx = globalState.tracks[i].waypoints.findIndex(wp => wp.wpId === marker.wpId);
+                        if (idx !== -1) {
+                            targetTrackIdx = i;
+                            targetWpIdx = idx;
+                            break;
+                        }
+                    }
+
+                    if (targetTrackIdx !== -1 && targetWpIdx !== -1 && map._onDeletePrompt) {
+                        marker.closePopup();
+                        map._onDeletePrompt(targetTrackIdx, targetWpIdx);
+                    }
+                };
             }
-        }
-
-        if (targetTrackIdx !== -1 && targetWpIdx !== -1 && map._onDeletePrompt) {
-            map._onDeletePrompt(targetTrackIdx, targetWpIdx);
-        }
+        }, 50);
     });
 }
 

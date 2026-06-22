@@ -1,58 +1,92 @@
-const dictionary = {
+// Kieliresurssit (Suomi ja Englanti)
+const translations = {
     fi: {
-        title: "Reittisuunnittelu",
-        sidebarTitle: "Reitin suunnittelu",
-        searchLabel: "Hae lähtöpiste / osoite",
+        title: "Reittisuunnittelija - @kaffe_racer",
+        sidebarTitle: "Reittisuunnittelija",
+        searchLabel: "Hae osoitetta tai paikkaa:",
         searchPlaceholder: "Kirjoita osoite...",
-        btnGpxImport: "Tuo GPX-tiedostot",
-        btnMergeTracks: "Yhdistä urat",
-        btnGpxExport: "Lataa GPX",
+        btnGpxImport: "Tuo GPX-tiedostoja",
+        btnMergeTracks: "Yhdistä urat yhtenäiseksi reitiksi",
+        btnGpxExport: "Vie reitti GPX-tiedostona",
         btnClearAll: "Tyhjennä kaikki",
+        contactTitle: "Ota yhteyttä",
         widgetTitle: "Reitin tiedot",
-        widgetNoRoutes: "Ei aktiivisia reittejä kartalla.",
-        widgetStats: "Kokonaisetäisyys: {dist} km",
+        widgetNoRoutes: "Ei aktiivisia reittejä. Klikkaa karttaa luodaksesi pisteitä.",
+        widgetStats: "Kokonaispituus: {dist} km",
         trackInfo: "Ura {index}: {points} pistettä ({dist} km)",
-        confirmDeletePoint: "Poistetaanko piste?",
+        confirmDeletePoint: "Haluatko varmasti poistaa tämän reittipisteen?",
+        readOnlyMode: "Huomautus: Reitityspalvelu on pois käytöstä. Sovellus toimii vain katselutilassa.",
+        layerMap: "Kartta",
+        layerSatellite: "Satelliitti",
         btnYes: "Kyllä",
         btnNo: "Ei",
-        readOnlyMode: "Vain katselutila käytössä"
+        // Uudet reittipisteen popup-ikkunan käännökset
+        popupWaypoint: "Reittipiste",
+        popupDeletePoint: "Poista piste",
+        popupStreetView: "Street View"
     },
     en: {
-        title: "Route planner",
-        sidebarTitle: "Plan a route",
-        searchLabel: "Search starting point / address",
+        title: "Route Planner - @kaffe_racer",
+        sidebarTitle: "Route Planner",
+        searchLabel: "Search address or location:",
         searchPlaceholder: "Type an address...",
-        btnGpxImport: "Import GPX files",
-        btnMergeTracks: "Merge tracks",
-        btnGpxExport: "Download GPX",
-        btnClearAll: "Clear all",
-        widgetTitle: "Route details",
-        widgetNoRoutes: "No active routes on map.",
+        btnGpxImport: "Import GPX Files",
+        btnMergeTracks: "Merge Tracks into Single Route",
+        btnGpxExport: "Export Route as GPX",
+        btnClearAll: "Clear All",
+        contactTitle: "Contact",
+        widgetTitle: "Route Details",
+        widgetNoRoutes: "No active routes. Click on the map to create waypoints.",
         widgetStats: "Total distance: {dist} km",
         trackInfo: "Track {index}: {points} points ({dist} km)",
-        confirmDeletePoint: "Delete this waypoint?",
+        confirmDeletePoint: "Are you sure you want to delete this waypoint?",
+        readOnlyMode: "Notice: Routing service is offline. App is running in read-only mode.",
+        layerMap: "Map",
+        layerSatellite: "Satellite",
         btnYes: "Yes",
         btnNo: "No",
-        readOnlyMode: "Vain katselutila käytössä / Read-only mode active"
+        // New waypoint popup translations
+        popupWaypoint: "Waypoint",
+        popupDeletePoint: "Delete point",
+        popupStreetView: "Street View"
     }
 };
 
-const userLanguage = navigator.language || navigator.userLanguage;
-export const activeLang = userLanguage.startsWith('fi') ? 'fi' : 'en';
+// Tunnistetaan selaimen kieli (oletuksena englanti, jos ei suomi)
+const currentLanguage = navigator.language.startsWith('fi') ? 'fi' : 'en';
 
 /**
- * Dynaaminen kääntäjäfunktio muuttujilla
- * @param {string} key Käännösavain
- * @param {Object} variables Avain-arvo-parit dynaamiselle datalle
- * @returns {string} Käännetty teksti
+ * Palauttaa käännöksen annetulle avaimelle dynaamisilla muuttujilla varustettuna.
+ * @param {string} key - Käännösavain
+ * @param {Object} [variables] - Dynaamiset muuttujat, esim. { dist: "10.5" }
+ * @param {string} [fallback] - Varateksti, jos avainta ei löydy
+ * @returns {string} Lokalisoitu teksti
  */
-export function t(key, variables = {}) {
-    const langDict = dictionary[activeLang] || dictionary['en'];
-    let text = langDict[key] || dictionary['en'][key] || key;
+export function t(key, variables = {}, fallback = '') {
+    const langDict = translations[currentLanguage] || translations['en'];
+    let text = langDict[key];
 
-    Object.keys(variables).forEach(vKey => {
-        text = text.replace(`{${vKey}}`, variables[vKey]);
+    // Jos avainta ei löydy, käytetään annettua varatekstiä tai itse avainta
+    if (text === undefined) {
+        return fallback || key;
+    }
+
+    // Jos kyseessä on pelkkä varatekstin haku ilman muuttujia (kuten t('key', 'Varateksti'))
+    if (typeof variables === 'string') {
+        return text;
+    }
+
+    // Korvataan dynaamiset muuttujat tekstistä (esim. {dist})
+    Object.keys(variables).forEach(varKey => {
+        text = text.replace(new RegExp(`{${varKey}}`, 'g'), variables[varKey]);
     });
 
     return text;
+}
+
+/**
+ * Palauttaa nykyisen käytössä olevan kielikoodin ('fi' tai 'en')
+ */
+export function getCurrentLocale() {
+    return currentLanguage;
 }
