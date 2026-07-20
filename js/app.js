@@ -1,490 +1,331 @@
 import { t } from './i18n.js';
-import { checkBackendStatus, fetchORSRoute, searchAddressGeocode } from './api.js';
-import { simplifyPointsDouglasPeucker } from './utils.js';
-import { parseGPXToCoordinates, exportTracksToGPXFile } from './gpx.js';
+import { checkBackendStatus, fetchORSRoute, searchAddressNominatim } from './api.js';
 import { 
-    initializeLeafletMapInstance, 
-    renderAllMapLayersAndTracks, 
+    initMap, 
     createInteractiveWaypointMarker, 
-    calculateTrackGeometryTotalDistance,
-    renderGPXLocationPulseMarker,
-    handleDynamicWaypointPruning,
-    bindDynamicMarkerEvents
+    bindDynamicMarkerEvents, 
+    updateMarkerVisibility, 
+    renderRoutePolylines, 
+    setUserLocationMarker 
 } from './map.js';
+import { calculateTotalDistance } from './utils.js';
+import { parseGPX, reduceGPXToWaypoints, exportGPX } from './gpx.js';
 
-// Keskitetty sovelluksen tila
-const globalState = {
-    readOnlyMode: false,
-    tracks: [],
-    lastActionWasImport: false,
-    lastActionWasMerge: false,
-    nextWaypointId: 1
+const state = {
+    isReadOnly: false,
+    nextWaypointId: 1,
+    hasImportedGPX: false,
+    tracks: []
 };
 
 let mapInstance = null;
-let activeModalTarget = null;
-let geocodeDebounceTimeout = null;
+let pendingDeleteTarget = null;
+
+const el = (id) => document.getElementById(id);
 
 document.addEventListener('DOMContentLoaded', async () => {
-    document.title = t('title');
+    mapInstance = initMap();
+
+    const isBackendOnline = await checkBackendStatus();
+    if (!isBackendOnline) {
+        state.isReadOnly = true;
+        el('readonly-bar').classList.remove('hidden');
+        el('readonly-text').textContent = t('readOnlyMode');
+    }
+
     translateDOM();
-    setupApplicationUIEventListeners();
+    setupEventListeners();
+    initGeolocation();
 
-    // Alustetaan karttainstanssi
-    mapInstance = initializeLeafletMapInstance('map', globalState, handleWaypointPositionReRouting, promptWaypointDeletionModal);
-
-    const isBackendAlive = await checkBackendStatus();
-    if (!isBackendAlive) {
-        globalState.readOnlyMode = true;
-        const bar = document.getElementById('info-bar');
-        if (bar) {
-            bar.textContent = t('readOnlyMode');
-            bar.classList.remove('hidden');
-        }
-    }
-
-    // Karttaklikkausten hallinta
-    mapInstance.on('click', (e) => {
-        if (globalState.readOnlyMode) return;
-        
-        let targetTrackIndex = globalState.tracks.length - 1;
-        
-        if (globalState.tracks.length === 0 || globalState.lastActionWasImport || globalState.lastActionWasMerge) {
-            globalState.tracks.push({ waypoints: [], routeGeometry: [], isImportedGPX: false });
-            targetTrackIndex = globalState.tracks.length - 1;
-            globalState.lastActionWasImport = false; 
-            globalState.lastActionWasMerge = false;
-        }
-
-        const currentTrack = globalState.tracks[targetTrackIndex];
-
-        // Luodaan markeri ja asetetaan sille dynaaminen vakaa ID
-        const newMarker = createInteractiveWaypointMarker(e.latlng);
-        newMarker.wpId = globalState.nextWaypointId++;
-        
-        newMarker.addTo(mapInstance);
-        currentTrack.waypoints.push(newMarker);
-        
-        // Sidotaan kuuntelijat välittömästi ennen reititystä
-        bindDynamicMarkerEvents(newMarker, globalState);
-        
-        computeTrackRoutingPathIntersection(currentTrack);
-
-        setTimeout(() => { 
-            newMarker.isNewPoint = false; 
-            handleDynamicWaypointPruning(globalState);
-        }, 800);
-    });
-
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => { renderGPXLocationPulseMarker(pos.coords.latitude, pos.coords.longitude); },
-            (err) => console.warn("Geolocation lookup skipped.", err),
-            { enableHighAccuracy: true, timeout: 5000 }
-        );
-    }
+    mapInstance._onReRoute = handleReRouteWaypoint;
+    mapInstance._onDeletePrompt = (trackIdx, wpIdx) => {
+        pendingDeleteTarget = { trackIdx, wpIdx };
+        el('delete-modal').classList.remove('hidden');
+    };
 });
 
-/**
- * Laskee tai hakee reittigeometrian uran pisteiden välille
- */
-async function computeTrackRoutingPathIntersection(track) {
-    if (!track || track.waypoints.length === 0) {
-        track.routeGeometry = [];
-        finalizeTrackRefreshSequence();
-        return;
-    }
-    
-    const getCoordsSafe = (wp) => {
-        const loc = wp.getLatLng ? wp.getLatLng() : wp._latlng;
-        return loc && typeof loc.lng === 'number' && typeof loc.lat === 'number' ? [loc.lng, loc.lat] : null;
-    };
-
-    if (track.waypoints.length === 1) {
-        const c = getCoordsSafe(track.waypoints[0]);
-        track.routeGeometry = c ? [[c[1], c[0]]] : [];
-        finalizeTrackRefreshSequence();
-        return;
-    }
-
-    const coords = track.waypoints.map(w => getCoordsSafe(w)).filter(c => c !== null);
-    if (coords.length < 2) {
-        finalizeTrackRefreshSequence();
-        return;
-    }
-
-    try {
-        const geoData = await fetchORSRoute(coords);
-
-        if (geoData && geoData.features && geoData.features.length > 0) {
-            let rawCoords = geoData.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-            track.routeGeometry = simplifyPointsDouglasPeucker(rawCoords, 0.0001);
-        } else {
-            // VIKASIETOISUUS FALLBACK: Jos rajapinta palauttaa tyhjää, piirretään suora viiva
-            track.routeGeometry = coords.map(c => [c[1], c[0]]);
-        }
-    } catch (err) {
-        console.error("Routing API call failed, drawing straight line fallback paths", err);
-        // VIKASIETOISUUS FALLBACK: Estetään sovelluksen kaatuminen verkkohäiriöissä
-        track.routeGeometry = coords.map(c => [c[1], c[0]]);
-    }
-    
-    finalizeTrackRefreshSequence();
-}
-
-/**
- * Käsittelee reittipisteen dynaamisen sijaintimuutoksen täysin race condition -suojatusti
- */
-function handleWaypointPositionReRouting(trackIndex, wpIndex, newLatLng) {
-    let actualTrack = null;
-    let targetWaypoint = null;
-
-    // Haetaan triggeröity markeri dynaamisen ID:n perusteella taulukkoviittausten sijaan
-    const triggerMarker = globalState.tracks[trackIndex]?.waypoints[wpIndex];
-
-    if (triggerMarker && typeof triggerMarker.wpId !== 'undefined') {
-        for (let i = 0; i < globalState.tracks.length; i++) {
-            const foundWp = globalState.tracks[i].waypoints.find(wp => wp.wpId === triggerMarker.wpId);
-            if (foundWp) {
-                actualTrack = globalState.tracks[i];
-                targetWaypoint = foundWp;
-                break;
-            }
-        }
-    }
-
-    // Varajärjestelmä (Fallback) jos ID puuttuu jostain syystä
-    if (!actualTrack) {
-        actualTrack = globalState.tracks[trackIndex];
-        if (actualTrack) targetWaypoint = actualTrack.waypoints[wpIndex];
-    }
-
-    // Päivitetään uusi sijainti dataan ennen uutta reitityslaskentaa
-    if (targetWaypoint) {
-        if (targetWaypoint.setLatLng) targetWaypoint.setLatLng(newLatLng);
-        else targetWaypoint._latlng = newLatLng;
-    }
-
-    if (actualTrack) {
-        computeTrackRoutingPathIntersection(actualTrack);
-    }
-}
-
-/**
- * Yhdistää kaikki urat saumattomasti ja laskee niiden väliset puuttuvat reitit (gaps)
- */
-async function executeGlobalTracksMergingSequence() {
-    if (globalState.tracks.length < 2) return;
-
-    // Siivotaan dynaamiset markerit kartalta ennen yhdistämistä sekaannusten välttämiseksi
-    globalState.tracks.forEach(track => {
-        track.waypoints.forEach(wp => {
-            if (mapInstance.hasLayer(wp)) mapInstance.removeLayer(wp);
-        });
-    });
-
-    let mergedWaypoints = [];
-    let mergedGeometry = [];
-
-    for (let i = 0; i < globalState.tracks.length; i++) {
-        const currentTrack = globalState.tracks[i];
-        
-        // Jos urien välillä on tyhjä väli, haetaan siihen dynaaminen sillanrakennusreitti ORS:sta
-        if (mergedWaypoints.length > 0 && currentTrack.waypoints.length > 0) {
-            const lastWp = mergedWaypoints[mergedWaypoints.length - 1].getLatLng();
-            const nextWp = currentTrack.waypoints[0].getLatLng();
-            
-            const gapCoords = [[lastWp.lng, lastWp.lat], [nextWp.lng, nextWp.lat]];
-            try {
-                const gapGeoData = await fetchORSRoute(gapCoords);
-                if (gapGeoData && gapGeoData.features && gapGeoData.features.length > 0) {
-                    const intermediatePoints = gapGeoData.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                    mergedGeometry.push(...intermediatePoints);
-                }
-            } catch (err) {
-                console.warn("Failed to stitch track gap smoothly, using straight line connector", err);
-                mergedGeometry.push([lastWp.lat, lastWp.lng], [nextWp.lat, nextWp.lng]);
-            }
-        }
-
-        mergedWaypoints.push(...currentTrack.waypoints);
-        mergedGeometry.push(...currentTrack.routeGeometry);
-    }
-
-    // Nollataan vanhat tapahtumakuuntelijat ja pakotetaan dynaaminen uusi sidonta
-    mergedWaypoints.forEach((wp) => {
-        wp.off('dragend');
-        wp.off('click');
-        wp.isNewPoint = false; 
-    });
-
-    // Päivitetään tila sisältämään vain yksi yhtenäinen ura
-    globalState.tracks = [{ waypoints: mergedWaypoints, routeGeometry: mergedGeometry, isImportedGPX: false }];
-    globalState.lastActionWasImport = false;
-    globalState.lastActionWasMerge = true;
-    
-    finalizeTrackRefreshSequence();
-    mapInstance.fire('moveend');
-}
-
-function finalizeTrackRefreshSequence() {
-    renderAllMapLayersAndTracks(globalState);
-    updateBottomWidgetTracklistUI();
-    evaluateVisibilityOfDynamicButtons();
-}
-
 function translateDOM() {
-    const el = (id) => document.getElementById(id);
+    if (el('page-title')) el('page-title').textContent = t('title');
     if (el('sidebar-title')) el('sidebar-title').textContent = t('sidebarTitle');
     if (el('search-label')) el('search-label').textContent = t('searchLabel');
-    if (el('contact-title')) el('contact-title').textContent = t('Contact');
+    if (el('address-search')) el('address-search').placeholder = t('searchPlaceholder');
     if (el('btn-gpx-import-trigger')) el('btn-gpx-import-trigger').textContent = t('btnGpxImport');
     if (el('btn-merge-tracks')) el('btn-merge-tracks').textContent = t('btnMergeTracks');
     if (el('btn-gpx-export')) el('btn-gpx-export').textContent = t('btnGpxExport');
     if (el('btn-clear-all')) el('btn-clear-all').textContent = t('btnClearAll');
+    if (el('contact-title')) el('contact-title').textContent = t('contactTitle', 'Contact');
     if (el('widget-title')) el('widget-title').textContent = t('widgetTitle');
-    if (el('modal-btn-yes')) el('modal-btn-yes').textContent = t('btnYes');
-    if (el('modal-btn-no')) el('modal-btn-no').textContent = t('btnNo');
-    if (el('address-search')) el('address-search').placeholder = t('searchPlaceholder');
+    if (el('widget-no-routes')) el('widget-no-routes').textContent = t('widgetNoRoutes');
+    if (el('modal-delete-text')) el('modal-delete-text').textContent = t('confirmDeletePoint');
+    if (el('modal-btn-confirm')) el('modal-btn-confirm').textContent = t('btnYes');
+    if (el('modal-btn-cancel')) el('modal-btn-cancel').textContent = t('btnNo');
 }
 
-function setupApplicationUIEventListeners() {
-    const sb = document.getElementById('sidebar');
-    const ol = document.getElementById('sidebar-overlay');
-    const toggle = document.getElementById('menu-toggle');
-    
-    if (toggle && sb && ol) {
-        const toggleSb = () => { sb.classList.toggle('open'); ol.classList.toggle('open'); };
-        toggle.addEventListener('click', toggleSb);
-        ol.addEventListener('click', toggleSb);
-    }
+function setupEventListeners() {
+    el('sidebar-toggle').addEventListener('click', toggleSidebar);
+    el('sidebar-close').addEventListener('click', toggleSidebar);
+    el('sidebar-overlay').addEventListener('click', toggleSidebar);
 
-    const widget = document.getElementById('info-widget');
-    if (widget) {
-        const handle = widget.querySelector('.widget-handle');
-        if (handle) {
-            handle.addEventListener('click', () => {
-                if (window.innerWidth <= 768) widget.classList.toggle('expanded');
-            });
+    const widgetHeader = el('info-widget-header');
+    widgetHeader.addEventListener('click', () => {
+        if (window.innerWidth <= 768) {
+            el('info-widget').classList.toggle('expanded');
         }
-        L.DomEvent.disableClickPropagation(widget);
-        L.DomEvent.disableScrollPropagation(widget);
-    }
-
-    const btnGpxTrigger = document.getElementById('btn-gpx-import-trigger');
-    const btnGpxInput = document.getElementById('btn-gpx-import');
-    if (btnGpxTrigger && btnGpxInput) {
-        btnGpxTrigger.addEventListener('click', () => btnGpxInput.click());
-        btnGpxInput.addEventListener('change', handleBulkGPXImporting);
-    }
-
-    const btnMerge = document.getElementById('btn-merge-tracks');
-    if (btnMerge) btnMerge.addEventListener('click', executeGlobalTracksMergingSequence);
-
-    const btnExport = document.getElementById('btn-gpx-export');
-    if (btnExport) btnExport.addEventListener('click', () => exportTracksToGPXFile(globalState.tracks));
-    
-    const btnClear = document.getElementById('btn-clear-all');
-    if (btnClear) {
-        btnClear.addEventListener('click', () => {
-            globalState.tracks.forEach(track => {
-                track.waypoints.forEach(wp => { if (mapInstance.hasLayer(wp)) mapInstance.removeLayer(wp); });
-            });
-            globalState.tracks = [];
-            globalState.lastActionWasImport = false;
-            globalState.lastActionWasMerge = false;
-            finalizeTrackRefreshSequence();
-        });
-    }
-
-    document.getElementById('modal-btn-no').addEventListener('click', () => {
-        document.getElementById('confirm-modal').classList.add('hidden');
-        activeModalTarget = null;
     });
 
-    document.getElementById('modal-btn-yes').addEventListener('click', executeConfirmedWaypointDeletion);
+    const widgetEl = el('info-widget');
+    L.DomEvent.disableClickPropagation(widgetEl);
+    L.DomEvent.disableScrollPropagation(widgetEl);
 
-    const searchInput = document.getElementById('address-search');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(geocodeDebounceTimeout);
-            const query = e.target.value.trim();
-            if (query.length < 3) {
-                document.getElementById('search-results').classList.add('hidden');
-                return;
-            }
-            geocodeDebounceTimeout = setTimeout(async () => {
-                const results = await searchAddressGeocode(query);
-                renderGeocodingResultsBox(results);
-            }, 400);
-        });
-    }
-}
+    mapInstance.on('click', async (e) => {
+        if (state.isReadOnly) return;
+        await addNewMapWaypoint(e.latlng);
+    });
 
-function renderGeocodingResultsBox(results) {
-    const container = document.getElementById('search-results');
-    if (!container) return;
-    container.innerHTML = '';
-    if (!results || results.length === 0) {
-        container.classList.add('hidden');
-        return;
-    }
-    container.classList.remove('hidden');
-    results.forEach(res => {
-        const div = document.createElement('div');
-        div.textContent = res.display_name;
-        div.addEventListener('click', () => {
-            const lat = parseFloat(res.lat);
-            const lon = parseFloat(res.lon);
-            
-            let targetTrackIndex = globalState.tracks.length - 1;
-            if (globalState.tracks.length === 0 || globalState.lastActionWasImport || globalState.lastActionWasMerge) {
-                globalState.tracks.push({ waypoints: [], routeGeometry: [], isImportedGPX: false });
-                targetTrackIndex = globalState.tracks.length - 1;
-                globalState.lastActionWasImport = false;
-                globalState.lastActionWasMerge = false;
-            }
+    mapInstance.on('moveend', () => updateMarkerVisibility(state));
+    mapInstance.on('zoomend', () => updateMarkerVisibility(state));
 
-            const latlng = L.latLng(lat, lon);
-            const currentTrack = globalState.tracks[targetTrackIndex];
+    let searchDebounce = null;
+    el('address-search').addEventListener('input', (e) => {
+        clearTimeout(searchDebounce);
+        const query = e.target.value;
+        if (query.trim().length < 3) {
+            el('search-results').classList.add('hidden');
+            return;
+        }
+        searchDebounce = setTimeout(async () => {
+            const results = await searchAddressNominatim(query);
+            renderSearchResults(results);
+        }, 350);
+    });
 
-            const newMarker = createInteractiveWaypointMarker(latlng);
-            newMarker.wpId = globalState.nextWaypointId++;
-            
-            newMarker.addTo(mapInstance);
-            currentTrack.waypoints.push(newMarker);
-            
-            bindDynamicMarkerEvents(newMarker, globalState);
-            computeTrackRoutingPathIntersection(currentTrack);
-            
-            mapInstance.setView(latlng, mapInstance.getZoom());
+    el('btn-gpx-import-trigger').addEventListener('click', () => el('gpx-file-input').click());
+    el('gpx-file-input').addEventListener('change', handleGPXFileUpload);
 
-            container.classList.add('hidden');
-            document.getElementById('address-search').value = '';
+    el('btn-merge-tracks').addEventListener('click', handleMergeTracks);
+    el('btn-gpx-export').addEventListener('click', () => exportGPX(state.tracks));
+    el('btn-clear-all').addEventListener('click', handleClearAll);
 
-            setTimeout(() => {
-                newMarker.isNewPoint = false;
-                handleDynamicWaypointPruning(globalState);
-            }, 800);
-        });
-        container.appendChild(div);
+    el('modal-btn-confirm').addEventListener('click', async () => {
+        if (pendingDeleteTarget) {
+            const { trackIdx, wpIdx } = pendingDeleteTarget;
+            await handleDeleteWaypoint(trackIdx, wpIdx);
+            pendingDeleteTarget = null;
+        }
+        el('delete-modal').classList.add('hidden');
+    });
+
+    el('modal-btn-cancel').addEventListener('click', () => {
+        pendingDeleteTarget = null;
+        el('delete-modal').classList.add('hidden');
     });
 }
 
-function evaluateVisibilityOfDynamicButtons() {
-    const mergeBtn = document.getElementById('btn-merge-tracks');
-    const exportBtn = document.getElementById('btn-gpx-export');
+function toggleSidebar() {
+    el('sidebar').classList.toggle('open');
+    el('sidebar-overlay').classList.toggle('active');
+}
 
-    if (mergeBtn) {
-        if (globalState.tracks.length >= 2) mergeBtn.classList.remove('hidden');
-        else mergeBtn.classList.add('hidden');
-    }
-    if (exportBtn) {
-        if (globalState.tracks.some(t => t.routeGeometry && t.routeGeometry.length > 0)) exportBtn.classList.remove('hidden');
-        else exportBtn.classList.add('hidden');
+function initGeolocation() {
+    if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+                setUserLocationMarker(latlng);
+            },
+            (err) => console.log('Geolocation unavailable/denied:', err.message),
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
     }
 }
 
-function promptWaypointDeletionModal(trackIndex, wpIndex) {
-    if (globalState.readOnlyMode) return;
-    activeModalTarget = { trackIndex, wpIndex };
-    document.getElementById('modal-text').textContent = t('confirmDeletePoint');
-    document.getElementById('confirm-modal').classList.remove('hidden');
+async function addNewMapWaypoint(latlng) {
+    const marker = createInteractiveWaypointMarker(latlng);
+    marker.wpId = state.nextWaypointId++;
+    bindDynamicMarkerEvents(marker, state);
+
+    if (state.hasImportedGPX || state.tracks.length === 0) {
+        state.hasImportedGPX = false;
+        const newTrack = {
+            trackId: Date.now(),
+            waypoints: [{ wpId: marker.wpId, latlng: latlng, marker: marker }],
+            geometry: []
+        };
+        state.tracks.push(newTrack);
+    } else {
+        const currentTrack = state.tracks[state.tracks.length - 1];
+        currentTrack.waypoints.push({ wpId: marker.wpId, latlng: latlng, marker: marker });
+        await recalculateTrackGeometry(currentTrack);
+    }
+
+    updateUI();
 }
 
-async function executeConfirmedWaypointDeletion() {
-    document.getElementById('confirm-modal').classList.add('hidden');
-    if (!activeModalTarget) return;
-
-    const { trackIndex, wpIndex } = activeModalTarget;
-    const track = globalState.tracks[trackIndex];
+async function handleReRouteWaypoint(trackIdx, wpIdx, newLatLng) {
+    const track = state.tracks[trackIdx];
     if (!track) return;
 
-    const isEdgePointDeletion = (wpIndex === 0 || wpIndex === track.waypoints.length - 1);
-    
-    if (track.isImportedGPX && isEdgePointDeletion) {
-        if (mapInstance.hasLayer(track.waypoints[wpIndex])) {
-            mapInstance.removeLayer(track.waypoints[wpIndex]);
-        }
-        
-        if (wpIndex === 0) {
-            track.waypoints.shift();
-            if (track.routeGeometry.length > 1) track.routeGeometry.shift();
-        } else {
-            track.waypoints.pop();
-            if (track.routeGeometry.length > 1) track.routeGeometry.pop();
-        }
-        finalizeTrackRefreshSequence();
-    } else {
-        if (mapInstance.hasLayer(track.waypoints[wpIndex])) {
-            mapInstance.removeLayer(track.waypoints[wpIndex]);
-        }
-        
-        track.waypoints.splice(wpIndex, 1);
-        if (track.waypoints.length === 0) {
-            globalState.tracks.splice(trackIndex, 1);
-            finalizeTrackRefreshSequence();
-        } else {
-            await computeTrackRoutingPathIntersection(track);
-        }
-    }
-    activeModalTarget = null;
+    track.waypoints[wpIdx].latlng = newLatLng;
+    await recalculateTrackGeometry(track);
+    updateUI();
 }
 
-function handleBulkGPXImporting(e) {
+async function handleDeleteWaypoint(trackIdx, wpIdx) {
+    const track = state.tracks[trackIdx];
+    if (!track) return;
+
+    const isStartOrEnd = (wpIdx === 0 || wpIdx === track.waypoints.length - 1);
+
+    track.waypoints.splice(wpIdx, 1);
+
+    if (track.waypoints.length < 2) {
+        state.tracks.splice(trackIdx, 1);
+    } else if (isStartOrEnd) {
+        await recalculateTrackGeometry(track);
+    } else {
+        await recalculateTrackGeometry(track);
+    }
+
+    updateUI();
+}
+
+async function recalculateTrackGeometry(track) {
+    if (track.waypoints.length < 2) {
+        track.geometry = [];
+        return;
+    }
+
+    const orsCoordinates = track.waypoints.map(wp => [wp.latlng.lng, wp.latlng.lat]);
+    const routedGeometry = await fetchORSRoute(orsCoordinates);
+    
+    if (routedGeometry && routedGeometry.length > 0) {
+        track.geometry = routedGeometry;
+    } else {
+        track.geometry = track.waypoints.map(wp => [wp.latlng.lat, wp.latlng.lng]);
+    }
+}
+
+async function handleGPXFileUpload(e) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            const rawCoords = parseGPXToCoordinates(evt.target.result);
-            if (rawCoords.length === 0) return;
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const text = await file.text();
+        const rawTracks = parseGPX(text);
 
-            const simplified = simplifyPointsDouglasPeucker(rawCoords, 0.0005);
-            
-            const currentTrackIdx = globalState.tracks.length;
-            const wps = simplified.map((pt) => {
-                const marker = createInteractiveWaypointMarker(L.latLng(pt[0], pt[1]));
-                marker.wpId = globalState.nextWaypointId++;
-                marker.isNewPoint = false; 
-                return marker;
+        for (const rawTrack of rawTracks) {
+            const reducedWps = reduceGPXToWaypoints(rawTrack);
+            const trackWaypoints = [];
+
+            reducedWps.forEach(pt => {
+                const latlng = L.latLng(pt[0], pt[1]);
+                const marker = createInteractiveWaypointMarker(latlng);
+                marker.wpId = state.nextWaypointId++;
+                bindDynamicMarkerEvents(marker, state);
+                trackWaypoints.push({ wpId: marker.wpId, latlng: latlng, marker: marker });
             });
 
-            globalState.tracks.push({ waypoints: wps, routeGeometry: rawCoords, isImportedGPX: true });
-            globalState.lastActionWasImport = true; 
-            globalState.lastActionWasMerge = false;
-            finalizeTrackRefreshSequence();
-        };
-        reader.readAsText(file);
-    });
-    e.target.value = '';
+            const newTrack = {
+                trackId: Date.now() + Math.random(),
+                waypoints: trackWaypoints,
+                geometry: rawTrack
+            };
+
+            state.tracks.push(newTrack);
+        }
+    }
+
+    state.hasImportedGPX = true;
+    el('gpx-file-input').value = '';
+    updateUI();
 }
 
-function updateBottomWidgetTracklistUI() {
-    const statsContainer = document.getElementById('route-stats');
-    const listContainer = document.getElementById('route-list');
-    if (!listContainer || !statsContainer) return;
-    listContainer.innerHTML = '';
+async function handleMergeTracks() {
+    if (state.tracks.length < 2) return;
 
-    if (globalState.tracks.length === 0) {
-        statsContainer.textContent = t('widgetNoRoutes');
+    const mergedWaypoints = [];
+    state.tracks.forEach(tr => {
+        mergedWaypoints.push(...tr.waypoints);
+    });
+
+    const mergedTrack = {
+        trackId: Date.now(),
+        waypoints: mergedWaypoints,
+        geometry: []
+    };
+
+    await recalculateTrackGeometry(mergedTrack);
+
+    state.tracks = [mergedTrack];
+    state.hasImportedGPX = true;
+    updateUI();
+}
+
+function handleClearAll() {
+    state.tracks = [];
+    state.hasImportedGPX = false;
+    updateUI();
+}
+
+function renderSearchResults(results) {
+    const listEl = el('search-results');
+    listEl.innerHTML = '';
+
+    if (results.length === 0) {
+        listEl.classList.add('hidden');
         return;
     }
 
-    let totalDist = 0;
-    globalState.tracks.forEach((track, idx) => {
-        const d = calculateTrackGeometryTotalDistance(track.routeGeometry);
-        totalDist += d;
+    results.forEach(res => {
+        const li = document.createElement('li');
+        li.textContent = res.display_name;
+        li.addEventListener('click', async () => {
+            const latlng = L.latLng(parseFloat(res.lat), parseFloat(res.lon));
+            listEl.classList.add('hidden');
+            el('address-search').value = res.display_name;
+            await addNewMapWaypoint(latlng);
+        });
+        listEl.appendChild(li);
+    });
+
+    listEl.classList.remove('hidden');
+}
+
+function updateUI() {
+    renderRoutePolylines(state);
+    updateMarkerVisibility(state);
+
+    if (state.tracks.length >= 2) {
+        el('btn-merge-tracks').classList.remove('hidden');
+    } else {
+        el('btn-merge-tracks').classList.add('hidden');
+    }
+
+    if (state.tracks.length > 0) {
+        el('btn-gpx-export').classList.remove('hidden');
+        el('widget-no-routes').classList.add('hidden');
+    } else {
+        el('btn-gpx-export').classList.add('hidden');
+        el('widget-no-routes').classList.remove('hidden');
+    }
+
+    let totalKm = 0;
+    const listContainer = el('route-tracks-list');
+    listContainer.innerHTML = '';
+
+    state.tracks.forEach((tr, idx) => {
+        const trackKm = calculateTotalDistance(tr.geometry);
+        totalKm += trackKm;
 
         const li = document.createElement('li');
         li.textContent = t('trackInfo', {
             index: idx + 1,
-            points: track.waypoints.length,
-            dist: d.toFixed(2)
+            points: tr.waypoints.length,
+            dist: trackKm.toFixed(2)
         });
         listContainer.appendChild(li);
     });
 
-    statsContainer.textContent = t('widgetStats', { dist: totalDist.toFixed(2) });
+    el('widget-stats').textContent = t('widgetStats', { dist: totalKm.toFixed(2) });
 }

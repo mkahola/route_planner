@@ -79,3 +79,60 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 - Optimoi sivu mobiiliversiota varten.s
 - Kirjoita koodi modulaarisesti siistinä, kommentoituna Vanilla JavaScriptinä ilman ulkoisia CSS-frameworkeja (kuten Tailwind tai Bootstrap). Käytä moderneja CSS-muuttujia väreille. Rakenna setup.sh tiedosto Linux-käyttöjärjestelmälle helppoa asennusta varten.
 
+Toteuta koodikantaan seuraavat ominaisuudet, käyttöliittymäparannukset ja syntaksikorjaukset. Pidä huoli, että koodi säilyy täysin virheettömänä eikä muodosta JavaScript-kaatumisia tai duplikaatteja.
+
+==============================================================================
+1. INSTAGRAM-BRÄNDILINKKI & VISUAALISET KORJAUKSET
+==============================================================================
+A. Karttapohjan tekijänoikeuspalkki (js/map.js & style.css):
+   - Lisää Instagram-linkki (@kaffe_racer) aitojen brändivärien SVG-gradientilla (<linearGradient id="ig-gradient">) Leaflet-kartan attribuutiopalkkiin.
+   - Pakota linkki näkymään mobiililaitteilla ilman, että Leafletin oletus CSS piilottaa sen (lisää `addAttribution()`-kutsu sekä CSS-sääntö `.leaflet-control-attribution { display: inline-flex !important; }`).
+   - Määritä mobiiliruuduille leikkaussuoja (`text-overflow: ellipsis`), jotta pitkät lisenssitekstit siistiytyvät, mutta `@kaffe_racer`-linkki pysyy kokonaisena näkyvissä.
+
+B. Menun sivupalkki (index.html & js/app.js):
+   - Lisää sivupalkin (sidebar) toimintopainikkeiden alapuolelle uusi "Contact"-osio (`<div class="sidebar-contact-section">`).
+   - Sijoita osion sisälle lokalisoitava otsikko `<h4 id="contact-title">Contact</h4>` sekä sama värikäs Instagram-linkki `@kaffe_racer`.
+   - Päivitä `js/app.js`-tiedoston `translateDOM()`-funktio kääntämään otsikko:
+     `if (el('contact-title')) el('contact-title').textContent = t('contactTitle', 'Contact');`
+
+==============================================================================
+2. REITTIPISTEEN GOOGLE STREET VIEW -POPUP & DYNAMIIKKA (js/map.js)
+==============================================================================
+A. Markerin popup-ikkuna:
+   - Kun käyttäjä klikkaa reittipistettä, kartta avaa Leaflet-popupin (`marker.openPopup()`).
+   - Popup-ikkunan sisälle luodaan:
+     1) Käännettävä otsikko (esim. "Reittipiste" / "Waypoint").
+     2) Sininen Google Street View -painike, joka avaa koordinaatteihin pohjautuvan 360°-panoraaman uuteen välilehteen:
+        `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=` + lat + `,` + lng
+     3) Punainen poistopainike (`.popup-delete-btn`), joka mahdollistaa pisteen poistamisen suoraan kuplan sisältä.
+   - muodosta URL-osoitteet turvallisella merkkijonojen yhdistämisellä (`+` operaattorilla), jotta template-literaalien syntaksivirheet estetään.
+
+B. Raahaus & Tapahtumat:
+   - Kun markeria raahataan (`dragend`), päivitä popup-ikkunan Street View -osoite dynaamisesti uusiin koordinaatteihin (`updateMarkerPopupContent`).
+   - Tarkista ja varmista, ETTEI `js/map.js`-tiedostossa ole duplikaattimäärittelyä `bindDynamicMarkerEvents()`-funktiolle. Funktio saa olla määriteltynä vain KERRAN.
+
+==============================================================================
+3. TÄYDELLINEN LOKALISOINTI JA KIELITIEDOSTO (js/i18n.js)
+==============================================================================
+A. Päivitä `js/i18n.js`-tiedosto ja varmista seuraavat asiat:
+   - Tiedoston tulee viedä `t()`-funktio ja tukea selaimen kielen tunnistusta (fi / en).
+   - Varmista olio-syntaksin eheys: jokaisen avain-arvo-parin lopussa On OLTAVA pilkku (`,`), jotta vältytään `SyntaxError: Unexpected identifier` -virheiltä.
+   - Lisää 'fi'- ja 'en'-sanakirjoihin seuraavat uudet avaimet:
+     * fi:
+       contactTitle: "Ota yhteyttä",
+       popupWaypoint: "Reittipiste",
+       popupDeletePoint: "Poista piste",
+       popupStreetView: "Street View"
+     * en:
+       contactTitle: "Contact",
+       popupWaypoint: "Waypoint",
+       popupDeletePoint: "Delete point",
+       popupStreetView: "Street View"
+
+B. Varmista `t()`-funktion toiminta:
+   - Funktion pitää pystyä käsittelemään sekä dynaamiset muuttujat (kuten `{dist}`) että suorat merkkijonojen varatekstit (fallback) tyyliin `t('avain', 'Varateksti')`.
+
+==============================================================================
+TAVOITE
+==============================================================================
+Koodipohjan tulee kääntyä ja toimia ilman yhtäkään konsolivihrettä. Kartan ja sivupalkin tulee latautua välittömästi, Instagram-linkkien tulee näkyä tyylikkäästi sekä työpöydällä että mobiilissa, ja reittipisteitä klikkaamalla avautuvan Street View -popupin tulee kääntyä lennossa valitun kielen mukaan.

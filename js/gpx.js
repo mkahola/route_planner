@@ -1,48 +1,73 @@
-/**
- * Parsii GPX-tekstitiedoston sisällöstä maantieteelliset koordinaatit.
- */
-export function parseGPXToCoordinates(gpxText) {
+import { simplifyDouglasPeucker } from './utils.js';
+
+export function parseGPX(gpxText) {
     const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(gpxText, "text/xml");
-    const trkpts = xmlDoc.getElementsByTagName("trkpt");
-    const points = [];
+    const xmlDoc = parser.parseFromString(gpxText, 'text/xml');
+    const tracks = [];
 
-    for (let i = 0; i < trkpts.length; i++) {
-        const lat = parseFloat(trkpts[i].getAttribute("lat"));
-        const lon = parseFloat(trkpts[i].getAttribute("lon"));
-        if (!isNaN(lat) && !isNaN(lon)) {
-            points.push([lat, lon]);
+    const trkSegments = xmlDoc.querySelectorAll('trkseg');
+    trkSegments.forEach(seg => {
+        const points = [];
+        const trkpts = seg.querySelectorAll('trkpt');
+        trkpts.forEach(pt => {
+            const lat = parseFloat(pt.getAttribute('lat'));
+            const lon = parseFloat(pt.getAttribute('lon'));
+            if (!isNaN(lat) && !isNaN(lon)) {
+                points.push([lat, lon]);
+            }
+        });
+        if (points.length > 0) {
+            tracks.push(points);
         }
-    }
-    return points;
-}
-
-/**
- * Muodostaa kaikista kartalla olevista urista yhtenäisen GPX-tiedoston ja lataa sen.
- */
-export function exportTracksToGPXFile(tracks) {
-    if (!tracks || tracks.length === 0) return;
-
-    let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    gpx += `<gpx version="1.1" creator="VanillaJS-RoutePlanner" xmlns="http://www.topografix.com/GPX/1/1">\n`;
-
-    tracks.forEach((track, index) => {
-        gpx += `  <trk>\n    <name>Ura ${index + 1}</name>\n    <trkseg>\n`;
-        if (track.routeGeometry) {
-            track.routeGeometry.forEach(pt => {
-                gpx += `      <trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>\n`;
-            });
-        }
-        gpx += `    </trkseg>\n  </trk>\n`;
     });
 
-    gpx += `</gpx>`;
+    if (tracks.length === 0) {
+        const rtepts = xmlDoc.querySelectorAll('rtept');
+        const points = [];
+        rtepts.forEach(pt => {
+            const lat = parseFloat(pt.getAttribute('lat'));
+            const lon = parseFloat(pt.getAttribute('lon'));
+            if (!isNaN(lat) && !isNaN(lon)) {
+                points.push([lat, lon]);
+            }
+        });
+        if (points.length > 0) tracks.push(points);
+    }
 
-    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+    return tracks;
+}
+
+export function reduceGPXToWaypoints(rawTrack) {
+    if (rawTrack.length <= 10) return rawTrack;
+    return simplifyDouglasPeucker(rawTrack, 0.0008);
+}
+
+export function exportGPX(tracksData) {
+    let gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="KaffeRacerRoutePlanner" xmlns="http://www.topografix.com/GPX/1/1">
+`;
+
+    tracksData.forEach((track, idx) => {
+        gpxContent += `  <trk>\n    <name>Track ${idx + 1}</name>\n    <trkseg>\n`;
+        if (track.geometry && track.geometry.length > 0) {
+            track.geometry.forEach(pt => {
+                gpxContent += `      <trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>\n`;
+            });
+        } else if (track.waypoints) {
+            track.waypoints.forEach(wp => {
+                gpxContent += `      <trkpt lat="${wp.latlng.lat}" lon="${wp.latlng.lng}"></trkpt>\n`;
+            });
+        }
+        gpxContent += `    </trkseg>\n  </trk>\n`;
+    });
+
+    gpxContent += `</gpx>`;
+
+    const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `reitti_export_${new Date().toISOString().slice(0,10)}.gpx`;
+    a.download = `route_${Date.now()}.gpx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

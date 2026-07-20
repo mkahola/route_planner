@@ -1,51 +1,56 @@
 const WORKER_URL = 'https://ors-proxy.mika-kahola.workers.dev/';
 
-/**
- * Tarkistaa taustajärjestelmän (Cloudflare Worker) tilan käynnistyksessä.
- */
 export async function checkBackendStatus() {
     try {
         const response = await fetch(WORKER_URL, { method: 'GET' });
         return response.ok;
     } catch (error) {
-        console.error("Backend healthcheck failed:", error);
+        console.warn('Backend health check failed:', error);
         return false;
     }
 }
 
-/**
- * Hakee reittigeometrian tieverkostoa pitkin OpenRouteService (ORS) -rajapinnasta.
- * @param {Array} coordinates Taulukko muodossa [[lng, lat], [lng, lat], ...]
- */
 export async function fetchORSRoute(coordinates) {
+    if (!coordinates || coordinates.length < 2) return [];
+
     try {
-        const bodyData = { coordinates: coordinates };
         const response = await fetch(WORKER_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(bodyData)
+            body: JSON.stringify({
+                coordinates: coordinates
+            })
         });
 
-        if (!response.ok) throw new Error(`ORS HTTP Status ${response.status}`);
-        return await response.json();
-    } catch (error) {
-        console.error("Error fetching routing geometry:", error);
-        return null;
+        if (!response.ok) {
+            throw new Error(`Routing request failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.features && data.features.length > 0) {
+            const rawCoords = data.features[0].geometry.coordinates;
+            return rawCoords.map(coord => [coord[1], coord[0]]);
+        }
+        return [];
+    } catch (err) {
+        console.error('ORSRoute error:', err);
+        return [];
     }
 }
 
-/**
- * Suorittaa osoitehaun OpenStreetMap Nominatim API -rajapinnasta.
- */
-export async function searchAddressGeocode(query) {
-    if (!query || query.length < 3) return [];
+export async function searchAddressNominatim(query) {
+    if (!query || query.trim().length < 3) return [];
+    
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
     try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
-        const response = await fetch(url, { headers: { 'Accept-Language': 'fi,en' } });
+        const response = await fetch(url, {
+            headers: { 'Accept-Language': navigator.language || 'en' }
+        });
         if (!response.ok) return [];
         return await response.json();
-    } catch (error) {
-        console.error("Geocoding fetch failed:", error);
+    } catch (err) {
+        console.error('Nominatim search error:', err);
         return [];
     }
 }
