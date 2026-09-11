@@ -1,331 +1,655 @@
-import { t } from './i18n.js';
-import { checkBackendStatus, fetchORSRoute, searchAddressNominatim } from './api.js';
-import { 
-    initMap, 
-    createInteractiveWaypointMarker, 
-    bindDynamicMarkerEvents, 
-    updateMarkerVisibility, 
-    renderRoutePolylines, 
-    setUserLocationMarker 
-} from './map.js';
-import { calculateTotalDistance } from './utils.js';
-import { parseGPX, reduceGPXToWaypoints, exportGPX } from './gpx.js';
+// js/app.js
+// Sovelluksen pääalustus, keskitetty tila (state) ja päätason event listenerit.
+// Ei globaaleja window-muuttujia: kaikki tila kulkee tämän moduulin sisällä ja
+// välitetään funktioille argumentteina.
 
+import { t, getActiveLanguage } from "./i18n.js";
+import { checkBackendStatus, fetchRoute, geocodeAddress, WORKER_URL } from "./api.js";
+import {
+  initMap,
+  createWaypointMarker,
+  renderPolyline,
+  updateVisibleMarkers,
+  locateUser,
+  createLocateControl,
+  disableMapEventsOn,
+} from "./map.js";
+import { importGpxFiles, downloadGpx } from "./gpx.js";
+import { totalDistance, formatKm, debounce, uid, haversineDistance } from "./utils.js";
+
+// ---------------------------------------------------------------------------
+// Keskitetty sovellustila
+// ---------------------------------------------------------------------------
 const state = {
-    isReadOnly: false,
-    nextWaypointId: 1,
-    hasImportedGPX: false,
-    tracks: []
+  map: null,
+  routesLayer: null, // L.layerGroup - omistaa KAIKKI reittien markerit ja polylinet, jotta "Tyhjennä kaikki" voi tyhjentää kaikki tasot yhdellä varmalla kutsulla
+  routes: [], // { id, name, points:[{id,lat,lng}], segments:[{geometry,distanceMeters}], polyline, markers:{}, imported, finalized }
+  activeRouteId: null,
+  readOnly: false,
+  pendingDelete: null, // { routeId, pointId } odottaa modaalin vahvistusta
+  pendingDownloadRouteId: null,
 };
 
-let mapInstance = null;
-let pendingDeleteTarget = null;
+const ROUTE_COLORS = ["#2f6f4f", "#c9622a", "#2a5fa5", "#7a3f9d", "#b0392f", "#22807a"];
 
-const el = (id) => document.getElementById(id);
+function el(id) {
+  return document.getElementById(id);
+}
 
-document.addEventListener('DOMContentLoaded', async () => {
-    mapInstance = initMap();
+// ---------------------------------------------------------------------------
+// Reittilogiikka (segmenttipohjainen malli)
+// ---------------------------------------------------------------------------
 
-    const isBackendOnline = await checkBackendStatus();
-    if (!isBackendOnline) {
-        state.isReadOnly = true;
-        el('readonly-bar').classList.remove('hidden');
-        el('readonly-text').textContent = t('readOnlyMode');
+function routeColor(route) {
+  const idx = state.routes.findIndex((r) => r.id === route.id);
+  return ROUTE_COLORS[idx % ROUTE_COLORS.length];
+}
+
+function flattenGeometry(route) {
+  if (route.points.length === 1) {
+    return [{ lat: route.points[0].lat, lng: route.points[0].lng }];
+  }
+  const geo = [];
+  route.segments.forEach((seg, i) => {
+    const pts = seg.geometry;
+    if (i === 0) {
+      geo.push(...pts);
+    } else {
+      // Vältetään segmenttien liitoskohdan duplikaattipiste.
+      geo.push(...pts.slice(1));
     }
+  });
+  return geo;
+}
 
-    translateDOM();
-    setupEventListeners();
-    initGeolocation();
+function routeTotalDistanceMeters(route) {
+  return route.segments.reduce((sum, s) => sum + s.distanceMeters, 0);
+}
 
-    mapInstance._onReRoute = handleReRouteWaypoint;
-    mapInstance._onDeletePrompt = (trackIdx, wpIdx) => {
-        pendingDeleteTarget = { trackIdx, wpIdx };
-        el('delete-modal').classList.remove('hidden');
+function createNewRoute() {
+  const route = {
+    id: uid(),
+    name: null,
+    points: [],
+    segments: [],
+    polyline: null,
+    markers: {},
+    imported: false,
+    finalized: false,
+  };
+  state.routes.push(route);
+  state.activeRouteId = route.id;
+  return route;
+}
+
+function getActiveRoute() {
+  if (!state.activeRouteId) return null;
+  return state.routes.find((r) => r.id === state.activeRouteId) || null;
+}
+
+async function computeSegmentBetween(a, b, fallbackStraightLine) {
+  try {
+    const { geometry, distanceMeters } = await fetchRoute([a, b]);
+    return { geometry, distanceMeters };
+  } catch (err) {
+    console.error("Reititys epäonnistui, käytetään suoraa viivaa.", err);
+    const geometry = [
+      { lat: a.lat, lng: a.lng },
+      { lat: b.lat, lng: b.lng },
+    ];
+    return { geometry, distanceMeters: haversineDistance(a, b) };
+  }
+}
+
+function addMarkerForPoint(route, point) {
+  const marker = createWaypointMarker(state.map, point, {
+    onDelete: (pointId) => requestDeletePoint(route.id, pointId),
+    onDragEnd: (pointId, latlng) => handlePointDragged(route.id, pointId, latlng),
+  });
+  route.markers[point.id] = marker;
+  // Rekisteröidään markeri pysyvästi routesLayer-ryhmään (kertaalleen),
+  // jotta "Tyhjennä kaikki" löytää sen varmasti riippumatta siitä onko se
+  // juuri sillä hetkellä näkyvissä dynaamisen zoom/bounds-suodatuksen takia.
+  state.routesLayer.addLayer(marker);
+  updateVisibleMarkers(state.map, route.points, route.markers);
+}
+
+function redrawRoutePolyline(route) {
+  const geometry = flattenGeometry(route);
+  if (geometry.length < 2) {
+    if (route.polyline) {
+      state.routesLayer.removeLayer(route.polyline);
+      route.polyline = null;
+    }
+    return;
+  }
+  route.polyline = renderPolyline(state.map, route.polyline, geometry, routeColor(route));
+  state.routesLayer.addLayer(route.polyline);
+}
+
+/**
+ * Lisää uuden pisteen aktiiviseen reittiin (tai luo uuden reitin jos
+ * aktiivista/keskeneräistä reittiä ei ole - kattaa erityissäännöt 2 ja 3).
+ * @param {{lat:number,lng:number}} latlng
+ */
+async function addPointToActiveRoute(latlng) {
+  if (state.readOnly) return;
+
+  let route = getActiveRoute();
+  if (!route || route.finalized) {
+    route = createNewRoute();
+  }
+
+  const newPoint = { id: uid(), lat: latlng.lat, lng: latlng.lng };
+  const prevPoint = route.points[route.points.length - 1];
+  route.points.push(newPoint);
+  addMarkerForPoint(route, newPoint);
+
+  if (prevPoint) {
+    const seg = await computeSegmentBetween(prevPoint, newPoint);
+    route.segments.push(seg);
+    redrawRoutePolyline(route);
+  }
+
+  renderAll();
+}
+
+/**
+ * Käsittelee reittipisteen raahauksen: laskee viereiset segmentit uudelleen.
+ */
+async function handlePointDragged(routeId, pointId, latlng) {
+  const route = state.routes.find((r) => r.id === routeId);
+  if (!route) return;
+
+  const idx = route.points.findIndex((p) => p.id === pointId);
+  if (idx === -1) return;
+
+  const tasks = [];
+
+  if (idx > 0) {
+    tasks.push(
+      computeSegmentBetween(route.points[idx - 1], route.points[idx]).then((seg) => {
+        route.segments[idx - 1] = seg;
+      })
+    );
+  }
+  if (idx < route.points.length - 1) {
+    tasks.push(
+      computeSegmentBetween(route.points[idx], route.points[idx + 1]).then((seg) => {
+        route.segments[idx] = seg;
+      })
+    );
+  }
+
+  await Promise.all(tasks);
+  redrawRoutePolyline(route);
+  renderAll();
+}
+
+/**
+ * Kysyy vahvistuksen modaalissa ennen pisteen poistoa.
+ */
+function requestDeletePoint(routeId, pointId) {
+  state.pendingDelete = { routeId, pointId };
+  openConfirmModal();
+}
+
+/**
+ * ERITYISSÄÄNTÖ 1: jos poistettava piste on reitin alku tai loppu, ei
+ * reititetä koko uraa uusiksi vaan leikataan vain viimeinen/ensimmäinen
+ * segmentti pois. Sisäisen pisteen poisto reitittää ympäröivän välin uusiksi.
+ */
+async function confirmDeletePoint() {
+  const pending = state.pendingDelete;
+  state.pendingDelete = null;
+  if (!pending) return;
+
+  const route = state.routes.find((r) => r.id === pending.routeId);
+  if (!route) return;
+
+  const idx = route.points.findIndex((p) => p.id === pending.pointId);
+  if (idx === -1) return;
+
+  // Poista markeri kartalta.
+  const marker = route.markers[pending.pointId];
+  if (marker) {
+    state.routesLayer.removeLayer(marker);
+    delete route.markers[pending.pointId];
+  }
+
+  const isFirst = idx === 0;
+  const isLast = idx === route.points.length - 1;
+
+  if (isFirst) {
+    route.points.shift();
+    if (route.segments.length > 0) route.segments.shift();
+  } else if (isLast) {
+    route.points.pop();
+    if (route.segments.length > 0) route.segments.pop();
+  } else {
+    const before = route.points[idx - 1];
+    const after = route.points[idx + 1];
+    const newSeg = await computeSegmentBetween(before, after);
+    // Korvaa kaksi vanhaa segmenttiä yhdellä uudella.
+    route.segments.splice(idx - 1, 2, newSeg);
+    route.points.splice(idx, 1);
+  }
+
+  if (route.points.length === 0) {
+    removeRoute(route.id);
+  } else {
+    redrawRoutePolyline(route);
+  }
+
+  renderAll();
+}
+
+function removeRoute(routeId) {
+  const route = state.routes.find((r) => r.id === routeId);
+  if (!route) return;
+
+  Object.values(route.markers).forEach((m) => state.routesLayer.removeLayer(m));
+  if (route.polyline) state.routesLayer.removeLayer(route.polyline);
+
+  state.routes = state.routes.filter((r) => r.id !== routeId);
+  if (state.activeRouteId === routeId) state.activeRouteId = null;
+}
+
+/**
+ * Yhdistää kaikki itsenäiset urat kartalla yhdeksi yhtenäiseksi reitiksi,
+ * reitittäen urien väliin jäävät aukot automaattisesti.
+ */
+async function mergeAllRoutes() {
+  if (state.routes.length < 2 || state.readOnly) return;
+
+  const ordered = state.routes.slice();
+  const merged = {
+    id: uid(),
+    name: null,
+    points: [],
+    segments: [],
+    polyline: null,
+    markers: {},
+    imported: false,
+    finalized: true,
+  };
+
+  for (let i = 0; i < ordered.length; i++) {
+    const route = ordered[i];
+    if (i > 0) {
+      const prevLast = merged.points[merged.points.length - 1];
+      const nextFirst = route.points[0];
+      const gapSeg = await computeSegmentBetween(prevLast, nextFirst);
+      merged.segments.push(gapSeg);
+    }
+    merged.points.push(...route.points);
+    merged.segments.push(...route.segments);
+  }
+
+  // Poista vanhat reitit kartalta ja tilasta.
+  ordered.forEach((route) => {
+    Object.values(route.markers).forEach((m) => state.routesLayer.removeLayer(m));
+    if (route.polyline) state.routesLayer.removeLayer(route.polyline);
+  });
+  state.routes = [];
+
+  // Lisää uudet markerit yhdistetylle reitille.
+  state.routes.push(merged);
+  merged.points.forEach((p) => addMarkerForPoint(merged, p));
+  redrawRoutePolyline(merged);
+
+  // Uusi klikkaus kartalle aloittaa aina uuden reitin yhdistämisen jälkeen.
+  state.activeRouteId = null;
+
+  renderAll();
+}
+
+function clearAllRoutes() {
+  // Tyhjennetään koko routesLayer-ryhmä yhdellä varmalla kutsulla - tämä
+  // poistaa kaikki markerit JA polylinet kartalta riippumatta siitä onko
+  // jokin niistä juuri sillä hetkellä piilotettuna dynaamisen zoom/bounds-
+  // suodatuksen takia tai muusta tilan epäsynkronoinnista.
+  if (state.routesLayer) state.routesLayer.clearLayers();
+  state.routes.forEach((route) => {
+    route.markers = {};
+    route.polyline = null;
+  });
+  state.routes = [];
+  state.activeRouteId = null;
+  renderAll();
+}
+
+// ---------------------------------------------------------------------------
+// GPX-tuonti ja -vienti
+// ---------------------------------------------------------------------------
+
+async function handleGpxImport(fileList) {
+  if (state.readOnly) return;
+  const imported = await importGpxFiles(fileList);
+
+  imported.forEach(({ name, points, rawPoints, indices }) => {
+    const route = {
+      id: uid(),
+      name: name || null,
+      points: points.map((p) => ({ id: uid(), lat: p.lat, lng: p.lng })),
+      segments: [],
+      polyline: null,
+      markers: {},
+      imported: true,
+      finalized: true, // ERITYISSÄÄNTÖ 2/3: seuraava klikkaus aloittaa uuden reitin
     };
-});
 
-function translateDOM() {
-    if (el('page-title')) el('page-title').textContent = t('title');
-    if (el('sidebar-title')) el('sidebar-title').textContent = t('sidebarTitle');
-    if (el('search-label')) el('search-label').textContent = t('searchLabel');
-    if (el('address-search')) el('address-search').placeholder = t('searchPlaceholder');
-    if (el('btn-gpx-import-trigger')) el('btn-gpx-import-trigger').textContent = t('btnGpxImport');
-    if (el('btn-merge-tracks')) el('btn-merge-tracks').textContent = t('btnMergeTracks');
-    if (el('btn-gpx-export')) el('btn-gpx-export').textContent = t('btnGpxExport');
-    if (el('btn-clear-all')) el('btn-clear-all').textContent = t('btnClearAll');
-    if (el('contact-title')) el('contact-title').textContent = t('contactTitle', 'Contact');
-    if (el('widget-title')) el('widget-title').textContent = t('widgetTitle');
-    if (el('widget-no-routes')) el('widget-no-routes').textContent = t('widgetNoRoutes');
-    if (el('modal-delete-text')) el('modal-delete-text').textContent = t('confirmDeletePoint');
-    if (el('modal-btn-confirm')) el('modal-btn-confirm').textContent = t('btnYes');
-    if (el('modal-btn-cancel')) el('modal-btn-cancel').textContent = t('btnNo');
-}
-
-function setupEventListeners() {
-    el('sidebar-toggle').addEventListener('click', toggleSidebar);
-    el('sidebar-close').addEventListener('click', toggleSidebar);
-    el('sidebar-overlay').addEventListener('click', toggleSidebar);
-
-    const widgetHeader = el('info-widget-header');
-    widgetHeader.addEventListener('click', () => {
-        if (window.innerWidth <= 768) {
-            el('info-widget').classList.toggle('expanded');
-        }
-    });
-
-    const widgetEl = el('info-widget');
-    L.DomEvent.disableClickPropagation(widgetEl);
-    L.DomEvent.disableScrollPropagation(widgetEl);
-
-    mapInstance.on('click', async (e) => {
-        if (state.isReadOnly) return;
-        await addNewMapWaypoint(e.latlng);
-    });
-
-    mapInstance.on('moveend', () => updateMarkerVisibility(state));
-    mapInstance.on('zoomend', () => updateMarkerVisibility(state));
-
-    let searchDebounce = null;
-    el('address-search').addEventListener('input', (e) => {
-        clearTimeout(searchDebounce);
-        const query = e.target.value;
-        if (query.trim().length < 3) {
-            el('search-results').classList.add('hidden');
-            return;
-        }
-        searchDebounce = setTimeout(async () => {
-            const results = await searchAddressNominatim(query);
-            renderSearchResults(results);
-        }, 350);
-    });
-
-    el('btn-gpx-import-trigger').addEventListener('click', () => el('gpx-file-input').click());
-    el('gpx-file-input').addEventListener('change', handleGPXFileUpload);
-
-    el('btn-merge-tracks').addEventListener('click', handleMergeTracks);
-    el('btn-gpx-export').addEventListener('click', () => exportGPX(state.tracks));
-    el('btn-clear-all').addEventListener('click', handleClearAll);
-
-    el('modal-btn-confirm').addEventListener('click', async () => {
-        if (pendingDeleteTarget) {
-            const { trackIdx, wpIdx } = pendingDeleteTarget;
-            await handleDeleteWaypoint(trackIdx, wpIdx);
-            pendingDeleteTarget = null;
-        }
-        el('delete-modal').classList.add('hidden');
-    });
-
-    el('modal-btn-cancel').addEventListener('click', () => {
-        pendingDeleteTarget = null;
-        el('delete-modal').classList.add('hidden');
-    });
-}
-
-function toggleSidebar() {
-    el('sidebar').classList.toggle('open');
-    el('sidebar-overlay').classList.toggle('active');
-}
-
-function initGeolocation() {
-    if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-                setUserLocationMarker(latlng);
-            },
-            (err) => console.log('Geolocation unavailable/denied:', err.message),
-            { enableHighAccuracy: true, timeout: 5000 }
-        );
-    }
-}
-
-async function addNewMapWaypoint(latlng) {
-    const marker = createInteractiveWaypointMarker(latlng);
-    marker.wpId = state.nextWaypointId++;
-    bindDynamicMarkerEvents(marker, state);
-
-    if (state.hasImportedGPX || state.tracks.length === 0) {
-        state.hasImportedGPX = false;
-        const newTrack = {
-            trackId: Date.now(),
-            waypoints: [{ wpId: marker.wpId, latlng: latlng, marker: marker }],
-            geometry: []
-        };
-        state.tracks.push(newTrack);
-    } else {
-        const currentTrack = state.tracks[state.tracks.length - 1];
-        currentTrack.waypoints.push({ wpId: marker.wpId, latlng: latlng, marker: marker });
-        await recalculateTrackGeometry(currentTrack);
+    // Jokaisen kahden peräkkäisen editointipisteen väliin rakennetaan
+    // segmentti käyttäen ALKUPERÄISEN GPX-jäljen tarkkaa pätkää (rawPoints-
+    // taulukosta indices[i]..indices[i+1]), ei suoraa viivaa. Näin karttaan
+    // piirretty reitti seuraa täsmälleen alkuperäistä kulkureittiä, vaikka
+    // vain harva osa pisteistä on muokattavia (raahattavia) reittipisteitä.
+    for (let i = 1; i < indices.length; i++) {
+      const startIdx = indices[i - 1];
+      const endIdx = indices[i];
+      const slice = rawPoints.slice(startIdx, endIdx + 1).map((p) => ({ lat: p.lat, lng: p.lng }));
+      route.segments.push({
+        geometry: slice,
+        distanceMeters: totalDistance(slice),
+      });
     }
 
-    updateUI();
+    state.routes.push(route);
+    route.points.forEach((p) => addMarkerForPoint(route, p));
+    redrawRoutePolyline(route);
+  });
+
+  state.activeRouteId = null;
+
+  if (imported.length && state.map) {
+    const last = state.routes[state.routes.length - 1];
+    const bounds = L.latLngBounds(last.points.map((p) => [p.lat, p.lng]));
+    if (bounds.isValid()) state.map.fitBounds(bounds, { padding: [40, 40] });
+  }
+
+  renderAll();
 }
 
-async function handleReRouteWaypoint(trackIdx, wpIdx, newLatLng) {
-    const track = state.tracks[trackIdx];
-    if (!track) return;
-
-    track.waypoints[wpIdx].latlng = newLatLng;
-    await recalculateTrackGeometry(track);
-    updateUI();
+function requestGpxDownload(routeId) {
+  state.pendingDownloadRouteId = routeId;
+  const route = state.routes.find((r) => r.id === routeId);
+  el("route-name-input").value = (route && route.name) || "";
+  openRouteNameModal();
 }
 
-async function handleDeleteWaypoint(trackIdx, wpIdx) {
-    const track = state.tracks[trackIdx];
-    if (!track) return;
+function confirmGpxDownload() {
+  const routeId = state.pendingDownloadRouteId;
+  state.pendingDownloadRouteId = null;
+  closeRouteNameModal();
 
-    const isStartOrEnd = (wpIdx === 0 || wpIdx === track.waypoints.length - 1);
+  const route = state.routes.find((r) => r.id === routeId);
+  if (!route) return;
 
-    track.waypoints.splice(wpIdx, 1);
+  const name = el("route-name-input").value.trim() || t("routeLabel", "Route");
+  route.name = name;
 
-    if (track.waypoints.length < 2) {
-        state.tracks.splice(trackIdx, 1);
-    } else if (isStartOrEnd) {
-        await recalculateTrackGeometry(track);
-    } else {
-        await recalculateTrackGeometry(track);
-    }
-
-    updateUI();
+  const geometry = flattenGeometry(route);
+  downloadGpx(geometry, name);
+  renderRouteList();
 }
 
-async function recalculateTrackGeometry(track) {
-    if (track.waypoints.length < 2) {
-        track.geometry = [];
-        return;
-    }
+// ---------------------------------------------------------------------------
+// Osoitehaku (Nominatim)
+// ---------------------------------------------------------------------------
 
-    const orsCoordinates = track.waypoints.map(wp => [wp.latlng.lng, wp.latlng.lat]);
-    const routedGeometry = await fetchORSRoute(orsCoordinates);
-    
-    if (routedGeometry && routedGeometry.length > 0) {
-        track.geometry = routedGeometry;
-    } else {
-        track.geometry = track.waypoints.map(wp => [wp.latlng.lat, wp.latlng.lng]);
-    }
-}
+const runGeocodeSearch = debounce(async (query) => {
+  const resultsBox = el("address-suggestions");
+  resultsBox.innerHTML = "";
 
-async function handleGPXFileUpload(e) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  if (!query || query.trim().length < 3) {
+    resultsBox.classList.remove("visible");
+    return;
+  }
 
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const text = await file.text();
-        const rawTracks = parseGPX(text);
-
-        for (const rawTrack of rawTracks) {
-            const reducedWps = reduceGPXToWaypoints(rawTrack);
-            const trackWaypoints = [];
-
-            reducedWps.forEach(pt => {
-                const latlng = L.latLng(pt[0], pt[1]);
-                const marker = createInteractiveWaypointMarker(latlng);
-                marker.wpId = state.nextWaypointId++;
-                bindDynamicMarkerEvents(marker, state);
-                trackWaypoints.push({ wpId: marker.wpId, latlng: latlng, marker: marker });
-            });
-
-            const newTrack = {
-                trackId: Date.now() + Math.random(),
-                waypoints: trackWaypoints,
-                geometry: rawTrack
-            };
-
-            state.tracks.push(newTrack);
-        }
-    }
-
-    state.hasImportedGPX = true;
-    el('gpx-file-input').value = '';
-    updateUI();
-}
-
-async function handleMergeTracks() {
-    if (state.tracks.length < 2) return;
-
-    const mergedWaypoints = [];
-    state.tracks.forEach(tr => {
-        mergedWaypoints.push(...tr.waypoints);
-    });
-
-    const mergedTrack = {
-        trackId: Date.now(),
-        waypoints: mergedWaypoints,
-        geometry: []
-    };
-
-    await recalculateTrackGeometry(mergedTrack);
-
-    state.tracks = [mergedTrack];
-    state.hasImportedGPX = true;
-    updateUI();
-}
-
-function handleClearAll() {
-    state.tracks = [];
-    state.hasImportedGPX = false;
-    updateUI();
-}
-
-function renderSearchResults(results) {
-    const listEl = el('search-results');
-    listEl.innerHTML = '';
-
+  try {
+    const results = await geocodeAddress(query);
     if (results.length === 0) {
-        listEl.classList.add('hidden');
-        return;
+      resultsBox.classList.remove("visible");
+      return;
     }
 
-    results.forEach(res => {
-        const li = document.createElement('li');
-        li.textContent = res.display_name;
-        li.addEventListener('click', async () => {
-            const latlng = L.latLng(parseFloat(res.lat), parseFloat(res.lon));
-            listEl.classList.add('hidden');
-            el('address-search').value = res.display_name;
-            await addNewMapWaypoint(latlng);
-        });
-        listEl.appendChild(li);
+    results.forEach((r) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "address-suggestion-item";
+      item.textContent = r.label;
+      item.addEventListener("click", () => {
+        resultsBox.classList.remove("visible");
+        el("address-input").value = r.label;
+        // Säilytetään zoom-taso ennallaan, keskitetään vain kartta.
+        state.map.panTo([r.lat, r.lng]);
+        addPointToActiveRoute({ lat: r.lat, lng: r.lng });
+      });
+      resultsBox.appendChild(item);
     });
 
-    listEl.classList.remove('hidden');
+    resultsBox.classList.add("visible");
+  } catch (err) {
+    console.error("Osoitehaku epäonnistui", err);
+    resultsBox.classList.remove("visible");
+  }
+}, 400);
+
+// ---------------------------------------------------------------------------
+// Renderöinti / UI-päivitykset
+// ---------------------------------------------------------------------------
+
+function renderAll() {
+  renderRouteList();
+  updateSidebarButtonVisibility();
 }
 
-function updateUI() {
-    renderRoutePolylines(state);
-    updateMarkerVisibility(state);
+function updateSidebarButtonVisibility() {
+  el("merge-routes-btn").style.display = state.routes.length >= 2 ? "" : "none";
+  el("download-gpx-btn").style.display = state.routes.length >= 1 ? "" : "none";
+}
 
-    if (state.tracks.length >= 2) {
-        el('btn-merge-tracks').classList.remove('hidden');
-    } else {
-        el('btn-merge-tracks').classList.add('hidden');
-    }
+function renderRouteList() {
+  const container = el("route-list-container");
+  container.innerHTML = "";
 
-    if (state.tracks.length > 0) {
-        el('btn-gpx-export').classList.remove('hidden');
-        el('widget-no-routes').classList.add('hidden');
-    } else {
-        el('btn-gpx-export').classList.add('hidden');
-        el('widget-no-routes').classList.remove('hidden');
-    }
+  if (state.routes.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "route-list-empty";
+    empty.textContent = t("noRoutes");
+    container.appendChild(empty);
+    updateTotalDistanceDisplay(0);
+    return;
+  }
 
-    let totalKm = 0;
-    const listContainer = el('route-tracks-list');
-    listContainer.innerHTML = '';
+  let grandTotal = 0;
 
-    state.tracks.forEach((tr, idx) => {
-        const trackKm = calculateTotalDistance(tr.geometry);
-        totalKm += trackKm;
+  state.routes.forEach((route, idx) => {
+    const meters = routeTotalDistanceMeters(route);
+    grandTotal += meters;
 
-        const li = document.createElement('li');
-        li.textContent = t('trackInfo', {
-            index: idx + 1,
-            points: tr.waypoints.length,
-            dist: trackKm.toFixed(2)
-        });
-        listContainer.appendChild(li);
+    const item = document.createElement("div");
+    item.className = "route-list-item";
+    item.style.borderLeftColor = routeColor(route);
+
+    const label = document.createElement("span");
+    label.className = "route-list-label";
+    label.textContent = (route.name || t("routeLabel") + " " + (idx + 1)) + " — " + formatKm(meters) + " " + t("kmUnit");
+    item.appendChild(label);
+
+    const meta = document.createElement("span");
+    meta.className = "route-list-meta";
+    meta.textContent = t("pointCount", { count: route.points.length });
+    item.appendChild(meta);
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "route-list-delete";
+    delBtn.setAttribute("aria-label", t("deleteRouteAria"));
+    delBtn.textContent = "✕";
+    delBtn.addEventListener("click", () => {
+      removeRoute(route.id);
+      renderAll();
     });
+    item.appendChild(delBtn);
 
-    el('widget-stats').textContent = t('widgetStats', { dist: totalKm.toFixed(2) });
+    container.appendChild(item);
+  });
+
+  updateTotalDistanceDisplay(grandTotal);
 }
+
+function updateTotalDistanceDisplay(meters) {
+  const totalEl = el("total-distance-value");
+  if (totalEl) totalEl.textContent = formatKm(meters) + " " + t("kmUnit");
+}
+
+/**
+ * Kääntää kaikki staattiset DOM-elementit aktiivisen kielen mukaan.
+ * index.html pysyy täysin kielivapaana - kaikki tekstit tulevat tästä.
+ */
+function translateDOM() {
+  document.title = t("appTitle");
+  if (el("app-title")) el("app-title").textContent = t("appTitle");
+  if (el("sidebar-title")) el("sidebar-title").textContent = t("sidebarTitle");
+  if (el("address-input")) el("address-input").placeholder = t("addressPlaceholder");
+  if (el("import-gpx-btn")) el("import-gpx-btn").textContent = t("importGpx");
+  if (el("merge-routes-btn")) el("merge-routes-btn").textContent = t("mergeRoutes");
+  if (el("download-gpx-btn")) el("download-gpx-btn").textContent = t("downloadGpx");
+  if (el("clear-all-btn")) el("clear-all-btn").textContent = t("clearAll");
+  if (el("contact-title")) el("contact-title").textContent = t("contactTitle", "Contact");
+  if (el("readonly-banner")) el("readonly-banner").textContent = t("readOnlyBanner");
+  if (el("route-list-title")) el("route-list-title").textContent = t("routeListTitle");
+  if (el("total-distance-label")) el("total-distance-label").textContent = t("totalDistance");
+  if (el("confirm-delete-title")) el("confirm-delete-title").textContent = t("confirmDeleteTitle");
+  if (el("confirm-delete-body")) el("confirm-delete-body").textContent = t("confirmDeleteBody");
+  if (el("confirm-yes-btn")) el("confirm-yes-btn").textContent = t("confirmYes");
+  if (el("confirm-no-btn")) el("confirm-no-btn").textContent = t("confirmNo");
+  if (el("route-name-modal-title")) el("route-name-modal-title").textContent = t("routeNameModalTitle");
+  if (el("route-name-input")) el("route-name-input").placeholder = t("routeNamePlaceholder");
+  if (el("route-name-save-btn")) el("route-name-save-btn").textContent = t("save");
+  if (el("route-name-cancel-btn")) el("route-name-cancel-btn").textContent = t("cancel");
+  if (el("hamburger-btn")) el("hamburger-btn").setAttribute("aria-label", t("hamburgerAria"));
+  if (el("sidebar-close-btn")) el("sidebar-close-btn").setAttribute("aria-label", t("closeAria"));
+
+  renderRouteList();
+}
+
+// ---------------------------------------------------------------------------
+// Modaalit
+// ---------------------------------------------------------------------------
+
+function openConfirmModal() {
+  el("confirm-delete-modal").classList.add("visible");
+}
+function closeConfirmModal() {
+  el("confirm-delete-modal").classList.remove("visible");
+  state.pendingDelete = null;
+}
+function openRouteNameModal() {
+  el("route-name-modal").classList.add("visible");
+}
+function closeRouteNameModal() {
+  el("route-name-modal").classList.remove("visible");
+}
+
+// ---------------------------------------------------------------------------
+// Sidebar / Bottom sheet
+// ---------------------------------------------------------------------------
+
+function toggleSidebar(forceState) {
+  const sidebar = el("sidebar");
+  const shouldOpen = forceState !== undefined ? forceState : !sidebar.classList.contains("open");
+  sidebar.classList.toggle("open", shouldOpen);
+  el("sidebar-overlay").classList.toggle("visible", shouldOpen);
+}
+
+function toggleBottomSheet() {
+  el("info-widget").classList.toggle("expanded");
+}
+
+// ---------------------------------------------------------------------------
+// Backend-tilan tarkistus (Read-Only-tila)
+// ---------------------------------------------------------------------------
+
+async function initBackendStatus() {
+  const ok = await checkBackendStatus();
+  state.readOnly = !ok;
+  el("readonly-banner").style.display = ok ? "none" : "flex";
+}
+
+// ---------------------------------------------------------------------------
+// Alustus
+// ---------------------------------------------------------------------------
+
+function bindEventListeners() {
+  state.map.on("click", (e) => {
+    addPointToActiveRoute({ lat: e.latlng.lat, lng: e.latlng.lng });
+  });
+
+  state.map.on("moveend zoomend", () => {
+    state.routes.forEach((route) => updateVisibleMarkers(state.map, route.points, route.markers));
+  });
+
+  el("hamburger-btn").addEventListener("click", () => toggleSidebar(true));
+  el("sidebar-close-btn").addEventListener("click", () => toggleSidebar(false));
+  el("sidebar-overlay").addEventListener("click", () => toggleSidebar(false));
+
+  el("address-input").addEventListener("input", (e) => runGeocodeSearch(e.target.value));
+
+  el("import-gpx-input").addEventListener("change", (e) => {
+    if (e.target.files && e.target.files.length) {
+      handleGpxImport(e.target.files);
+      e.target.value = "";
+    }
+  });
+  el("import-gpx-btn").addEventListener("click", () => el("import-gpx-input").click());
+
+  el("merge-routes-btn").addEventListener("click", () => mergeAllRoutes());
+  el("clear-all-btn").addEventListener("click", () => clearAllRoutes());
+
+  el("download-gpx-btn").addEventListener("click", () => {
+    const routeId = state.routes.length ? state.routes[state.routes.length - 1].id : null;
+    if (routeId) requestGpxDownload(routeId);
+  });
+
+  el("confirm-yes-btn").addEventListener("click", () => {
+    // TÄRKEÄÄ: confirmDeletePoint() lukee state.pendingDelete:n, joten se
+    // pitää kutsua ENNEN closeConfirmModal():ia (joka nollaa pendingDelete:n).
+    // Väärä kutsujärjestys aiheutti sen, ettei piste koskaan poistunut.
+    confirmDeletePoint();
+    closeConfirmModal();
+  });
+  el("confirm-no-btn").addEventListener("click", () => closeConfirmModal());
+
+  el("route-name-save-btn").addEventListener("click", () => confirmGpxDownload());
+  el("route-name-cancel-btn").addEventListener("click", () => {
+    state.pendingDownloadRouteId = null;
+    closeRouteNameModal();
+  });
+
+  el("bottom-sheet-header").addEventListener("click", () => {
+    if (window.innerWidth <= 768) toggleBottomSheet();
+  });
+
+  disableMapEventsOn(state.map, el("info-widget"));
+  disableMapEventsOn(state.map, el("sidebar"));
+}
+
+function init() {
+  state.map = initMap("map");
+  state.routesLayer = L.layerGroup().addTo(state.map);
+  translateDOM();
+  bindEventListeners();
+  initBackendStatus();
+
+  // Automaattinen ensimmäinen yritys (voi epäonnistua ilman käyttäjän
+  // klikkausta joissakin selaimissa/ympäristöissä - siksi myös oma
+  // "Paikanna minut" -painike alla, joka toimii aina).
+  locateUser(state.map);
+  createLocateControl(state.map, () => locateUser(state.map));
+
+  renderAll();
+}
+
+document.addEventListener("DOMContentLoaded", init);

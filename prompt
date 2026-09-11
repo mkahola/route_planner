@@ -70,6 +70,7 @@ Toteuta lokalisointijärjestelmä seuraavien vaatimusten mukaisesti:
 
 10. TIEDOSTOJEN TALLENNUS
 - Lisää painike GPX-jäljen lataamiseksi paikallisesti laitteen Downloads-hakemistoon.
+- Lisää valintaikkuna, jossa voi antaa reitin nimen ja tallenna tämä myös gpx-jäljen <name> nimeksi.
 
 11. KÄYTTÖLIITTYMÄN ASENTELU JA ULKOASU
 - Otsikoi sivu "Reittisuunnittelu" ja lokalisoi otsikko englanniksi "Route planner", jos englanti on valittu kieleksi.
